@@ -1,0 +1,14 @@
+# Données locales : clés privées, base SQLite, documents émis
+data/
+*.key.pem
+*.key
+*.p12
+secret_key
+
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# Fichiers d'essai régénérés par `python -m certiproof scenarios` (signés par une AC jetable)
+results/fichiers/

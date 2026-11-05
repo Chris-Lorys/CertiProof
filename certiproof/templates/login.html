@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="card" style="max-width:400px;margin:40px auto">
+  <h2>Connexion de l'établissement</h2>
+  <p class="muted">{{ issuer_name }} — seul ce compte peut émettre ou révoquer une attestation.</p>
+  <form method="post">
+    <input type="hidden" name="csrf" value="{{ csrf_token() }}">
+    <p><label>Identifiant</label><input name="username" autocomplete="username" required></p>
+    <p><label>Mot de passe</label><input name="password" type="password" autocomplete="current-password" required></p>
+    <button>Se connecter</button>
+  </form>
+</div>
+{% endblock %}

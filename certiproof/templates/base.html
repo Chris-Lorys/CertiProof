@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CertiProof · {{ "Émission" if space == "emission" else "Vérification" }}</title>
+<style>
+  :root { --bg:#f5f7fa; --card:#fff; --ink:#1b2430; --muted:#5d6b7a; --line:#dde3ea;
+          --brand:#1f3a5f; --ok:#1e7a46; --ok-bg:#e6f4ec; --ko:#b42318; --ko-bg:#fdecea;
+          --warn:#9a6700; --warn-bg:#fff4d6; }
+  * { box-sizing:border-box; }
+  body { margin:0; font:15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; background:var(--bg); color:var(--ink); }
+  header { background:var(--brand); color:#fff; padding:14px 24px; display:flex; align-items:center; gap:16px; }
+  header h1 { font-size:18px; margin:0; }
+  header .tag { font-size:12px; background:rgba(255,255,255,.15); padding:2px 8px; border-radius:10px; }
+  header form { margin-left:auto; }
+  main { max-width:1000px; margin:24px auto; padding:0 16px; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:20px; margin-bottom:20px; }
+  h2 { font-size:17px; margin:0 0 14px; }
+  label { display:block; font-size:13px; color:var(--muted); margin-bottom:4px; }
+  input, select { width:100%; padding:8px 10px; border:1px solid var(--line); border-radius:6px; font:inherit; }
+  .grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(220px, 1fr)); gap:14px; }
+  button { background:var(--brand); color:#fff; border:0; border-radius:6px; padding:9px 16px; font:inherit; cursor:pointer; }
+  button.ghost { background:transparent; border:1px solid rgba(255,255,255,.5); }
+  button.danger { background:var(--ko); padding:5px 10px; font-size:13px; }
+  table { width:100%; border-collapse:collapse; font-size:14px; }
+  th, td { text-align:left; padding:8px 6px; border-bottom:1px solid var(--line); vertical-align:middle; }
+  th { color:var(--muted); font-weight:600; font-size:12px; text-transform:uppercase; }
+  code { font-size:12px; }
+  .pill { font-size:12px; padding:2px 8px; border-radius:10px; font-weight:600; }
+  .pill.valid { background:var(--ok-bg); color:var(--ok); }
+  .pill.revoked { background:var(--ko-bg); color:var(--ko); }
+  .flash { padding:10px 14px; border-radius:6px; margin-bottom:16px; }
+  .flash.ok { background:var(--ok-bg); color:var(--ok); }
+  .flash.error { background:var(--ko-bg); color:var(--ko); }
+  .verdict { padding:18px 20px; border-radius:10px; margin-bottom:16px; }
+  .verdict h2 { font-size:22px; margin:0 0 4px; }
+  .v-ok { background:var(--ok-bg); color:var(--ok); }
+  .v-ko { background:var(--ko-bg); color:var(--ko); }
+  .v-warn { background:var(--warn-bg); color:var(--warn); }
+  .check { display:flex; gap:12px; padding:10px 0; border-bottom:1px solid var(--line); }
+  .check:last-child { border-bottom:0; }
+  .icon { width:26px; height:26px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-weight:700; flex:none; }
+  .i-ok { background:var(--ok-bg); color:var(--ok); }
+  .i-ko { background:var(--ko-bg); color:var(--ko); }
+  .i-na { background:#eef1f4; color:var(--muted); }
+  .muted { color:var(--muted); font-size:13px; }
+  dl { display:grid; grid-template-columns:max-content 1fr; gap:4px 14px; margin:0; font-size:13px; }
+  dt { color:var(--muted); } dd { margin:0; word-break:break-all; }
+  .actions { display:flex; gap:6px; align-items:center; flex-wrap:wrap; }
+  .actions a { font-size:13px; }
+  .actions input { width:140px; padding:4px 8px; font-size:13px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>CertiProof</h1>
+  <span class="tag">{{ "Espace d'émission" if space == "emission" else "Espace de vérification" }}</span>
+  {% if space == "emission" and session.get("role") %}
+  <form method="post" action="{{ url_for('logout') }}">
+    <input type="hidden" name="csrf" value="{{ csrf_token() }}">
+    <button class="ghost">Déconnexion ({{ session.get("user") }})</button>
+  </form>
+  {% endif %}
+</header>
+<main>
+  {% with msgs = get_flashed_messages(with_categories=true) %}
+    {% for cat, msg in msgs %}<div class="flash {{ cat }}">{{ msg }}</div>{% endfor %}
+  {% endwith %}
+  {% block content %}{% endblock %}
+</main>
+</body>
+</html>

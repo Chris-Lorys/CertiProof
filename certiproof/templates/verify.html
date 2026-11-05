@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="card">
+  <h2>Vérifier une attestation</h2>
+  <p class="muted">Déposez le PDF reçu et son fichier de preuve. Le vérificateur répond à trois questions :
+    qui l'a signé, a-t-il changé, est-il encore valide ?</p>
+  <form method="post" action="{{ url_for('verify') }}" enctype="multipart/form-data">
+    <input type="hidden" name="csrf" value="{{ csrf_token() }}">
+    <div class="grid">
+      <p><label>Document PDF</label><input type="file" name="pdf" accept="application/pdf,.pdf" required></p>
+      <p><label>Fichier de preuve (.proof.json)</label><input type="file" name="proof" accept=".json,application/json"></p>
+    </div>
+    <button>Vérifier</button>
+  </form>
+</div>
+
+{% if result %}
+{% set cls = "v-ok" if result.verdict == "ACCEPTÉ" else ("v-warn" if result.verdict == "NON CONFIRMÉ" else "v-ko") %}
+<div class="verdict {{ cls }}">
+  <h2>{{ result.verdict }}</h2>
+  <div>{{ result.message }}</div>
+  <div class="muted" style="margin-top:6px">Code : <code>{{ result.code }}</code> · {{ pdf_name }}{% if proof_name %} + {{ proof_name }}{% endif %}</div>
+</div>
+
+<div class="card">
+  <h2>Contrôles</h2>
+  {% for c in result.checks %}
+  <div class="check">
+    <div class="icon {{ 'i-ok' if c.ok == true else ('i-ko' if c.ok == false else 'i-na') }}">
+      {{ "✓" if c.ok == true else ("✗" if c.ok == false else "?") }}</div>
+    <div><strong>{{ c.name }}</strong><div class="muted">{{ c.detail }}</div></div>
+  </div>
+  {% endfor %}
+</div>
+
+{% if result.info %}
+<div class="card">
+  <h2>Détails</h2>
+  <dl>
+    <dt>Document</dt><dd><code>{{ result.info.doc_id }}</code></dd>
+    <dt>Émetteur (certificat)</dt><dd>{{ result.info.issuer_name }} ({{ result.info.issuer_id_cert }})</dd>
+    <dt>Autorité</dt><dd>{{ result.info.ca or "non reconnue" }}</dd>
+    <dt>Émis le</dt><dd>{{ result.info.issued_at }}</dd>
+    <dt>Algorithme</dt><dd>{{ result.info.algorithm }} ({{ result.info.signature_bytes }} octets)</dd>
+    <dt>SHA-256 attendu</dt><dd><code>{{ result.info.expected_sha256 }}</code></dd>
+    <dt>SHA-256 calculé</dt><dd><code>{{ result.info.pdf_sha256 }}</code></dd>
+    {% for k, v in result.timings_ms.items() %}<dt>Temps {{ k }}</dt><dd>{{ "%.3f"|format(v) }} ms</dd>{% endfor %}
+  </dl>
+</div>
+{% endif %}
+{% endif %}
+{% endblock %}

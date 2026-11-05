@@ -1,0 +1,108 @@
+{
+  "conditions": {
+    "date": "2026-11-05T04:24:55Z",
+    "python": "3.13.18",
+    "platform": "Linux-6.18.44-fc-v236-x86_64-with-glibc2.39",
+    "machine": "x86_64",
+    "processor": "x86_64",
+    "cryptography": "50.0.2",
+    "openssl": "OpenSSL 4.0.3 29 Sep 2026"
+  },
+  "signatures": [
+    {
+      "niveau_bits": 128,
+      "algorithme": "RSA-PSS 3072",
+      "generation_cle": {
+        "n": 5,
+        "mediane_ms": 270.920492,
+        "moyenne_ms": 295.7352752,
+        "ecart_type_ms": 209.8488268024416,
+        "p95_ms": 607.227957
+      },
+      "signature": {
+        "n": 300,
+        "mediane_ms": 1.983966,
+        "moyenne_ms": 2.0634321466666665,
+        "ecart_type_ms": 0.2188608434636582,
+        "p95_ms": 2.689364
+      },
+      "verification": {
+        "n": 300,
+        "mediane_ms": 0.05022,
+        "moyenne_ms": 0.05329168,
+        "ecart_type_ms": 0.008284363161658686,
+        "p95_ms": 0.071176
+      },
+      "taille_signature_octets": {
+        "min": 384,
+        "max": 384,
+        "moyenne": 384.0
+      },
+      "taille_cle_publique_der_octets": 422,
+      "taille_certificat_der_octets": 832,
+      "taille_preuve_json_octets": 2129
+    },
+    {
+      "niveau_bits": 128,
+      "algorithme": "ECDSA P-256",
+      "generation_cle": {
+        "n": 5,
+        "mediane_ms": 0.01548,
+        "moyenne_ms": 0.0257938,
+        "ecart_type_ms": 0.022138178847863708,
+        "p95_ms": 0.065293
+      },
+      "signature": {
+        "n": 300,
+        "mediane_ms": 0.0283415,
+        "moyenne_ms": 0.030225296666666665,
+        "ecart_type_ms": 0.006345043560233432,
+        "p95_ms": 0.037787
+      },
+      "verification": {
+        "n": 300,
+        "mediane_ms": 0.073556,
+        "moyenne_ms": 0.077718,
+        "ecart_type_ms": 0.009776386418543524,
+        "p95_ms": 0.097743
+      },
+      "taille_signature_octets": {
+        "min": 69,
+        "max": 72,
+        "moyenne": 70.98
+      },
+      "taille_cle_publique_der_octets": 91,
+      "taille_certificat_der_octets": 500,
+      "taille_preuve_json_octets": 1253
+    }
+  ],
+  "sha256": [
+    {
+      "taille_octets": 100000,
+      "n": 30,
+      "mediane_ms": 0.2465655,
+      "moyenne_ms": 0.2587395333333333,
+      "ecart_type_ms": 0.031056111823082683,
+      "p95_ms": 0.349531,
+      "debit_mo_s": 405.57174462769535
+    },
+    {
+      "taille_octets": 1000000,
+      "n": 30,
+      "mediane_ms": 2.5121275,
+      "moyenne_ms": 2.516631,
+      "ecart_type_ms": 0.04575506395414907,
+      "p95_ms": 2.594432,
+      "debit_mo_s": 398.0689674389536
+    },
+    {
+      "taille_octets": 10000000,
+      "n": 30,
+      "mediane_ms": 25.307654,
+      "moyenne_ms": 25.470903266666667,
+      "ecart_type_ms": 0.6511454003001665,
+      "p95_ms": 25.875015,
+      "debit_mo_s": 395.13737622618044
+    }
+  ]
+}

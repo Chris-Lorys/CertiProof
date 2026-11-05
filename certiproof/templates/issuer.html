@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="card">
+  <h2>Émettre une attestation — {{ svc.issuer_name }}</h2>
+  <form method="post" action="{{ url_for('issue') }}">
+    <input type="hidden" name="csrf" value="{{ csrf_token() }}">
+    <div class="grid">
+      <p><label>Type de document</label>
+        <select name="doc_type">{% for k, v in doc_types.items() %}<option value="{{ k }}">{{ v }}</option>{% endfor %}</select></p>
+      <p><label>Titulaire</label><input name="holder" placeholder="Alice Tremblay" required></p>
+      <p><label>Programme / cours / lieu de stage</label><input name="program" placeholder="Baccalauréat en informatique" required></p>
+      <p><label>Mention / note</label><input name="grade" placeholder="Excellent" required></p>
+      <p><label>Date de délivrance</label><input name="date" type="date" required></p>
+      <p><label>Algorithme de signature</label>
+        <select name="alg"><option value="ecdsa">ECDSA P-256 / SHA-256</option><option value="rsa">RSA-PSS 3072 / SHA-256</option></select></p>
+    </div>
+    <button>Générer, signer et inscrire au registre</button>
+  </form>
+</div>
+
+<div class="card">
+  <h2>Registre des attestations</h2>
+  {% if docs %}
+  <table>
+    <tr><th>Identifiant</th><th>Titulaire</th><th>Document</th><th>Algorithme</th><th>Statut</th><th>Actions</th></tr>
+    {% for d in docs %}
+    <tr {% if request.args.get('highlight') == d.doc_id %}style="background:#eef4fb"{% endif %}>
+      <td><code>{{ d.doc_id }}</code><div class="muted">{{ d.issued_at }}</div></td>
+      <td>{{ d.holder }}</td>
+      <td>{{ doc_types.get(d.doc_type, d.doc_type) }}<div class="muted">{{ d.program }}</div></td>
+      <td><code>{{ d.algorithm }}</code></td>
+      <td>{% if d.status == "valid" %}<span class="pill valid">Valide</span>
+          {% else %}<span class="pill revoked">Révoquée</span><div class="muted">{{ d.revocation_reason }}</div>{% endif %}</td>
+      <td><div class="actions">
+        <a href="{{ url_for('download_pdf', doc_id=d.doc_id) }}">PDF</a>
+        <a href="{{ url_for('download_proof', doc_id=d.doc_id) }}">Preuve</a>
+        {% if d.status == "valid" %}
+        <form method="post" action="{{ url_for('revoke', doc_id=d.doc_id) }}" class="actions">
+          <input type="hidden" name="csrf" value="{{ csrf_token() }}">
+          <input name="reason" placeholder="Motif">
+          <button class="danger">Révoquer</button>
+        </form>
+        {% endif %}
+      </div></td>
+    </tr>
+    {% endfor %}
+  </table>
+  {% else %}<p class="muted">Aucune attestation émise pour le moment.</p>{% endif %}
+</div>
+{% endblock %}

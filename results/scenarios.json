@@ -1,0 +1,249 @@
+{
+  "conditions": {
+    "date": "2026-11-05T04:24:55Z",
+    "python": "3.13.18",
+    "platform": "Linux-6.18.44-fc-v236-x86_64-with-glibc2.39",
+    "machine": "x86_64",
+    "processor": "x86_64",
+    "cryptography": "50.0.2",
+    "openssl": "OpenSSL 4.0.3 29 Sep 2026"
+  },
+  "resultats": [
+    {
+      "id": "S1a",
+      "scenario": "PDF original + preuve correcte (RSA-PSS)",
+      "attendu": "ACCEPTÉ (OK)",
+      "observe": "ACCEPTÉ (OK)",
+      "conforme": true,
+      "message": "Document authentique, intact et valide, émis par Université Fictive du Saguenay.",
+      "controles": {
+        "Preuve": true,
+        "Émetteur reconnu": true,
+        "Signature": true,
+        "Intégrité du PDF": true,
+        "Statut (registre)": true
+      }
+    },
+    {
+      "id": "S1b",
+      "scenario": "PDF original + preuve correcte (ECDSA)",
+      "attendu": "ACCEPTÉ (OK)",
+      "observe": "ACCEPTÉ (OK)",
+      "conforme": true,
+      "message": "Document authentique, intact et valide, émis par Université Fictive du Saguenay.",
+      "controles": {
+        "Preuve": true,
+        "Émetteur reconnu": true,
+        "Signature": true,
+        "Intégrité du PDF": true,
+        "Statut (registre)": true
+      }
+    },
+    {
+      "id": "S2a",
+      "scenario": "Nom modifié dans le PDF",
+      "attendu": "REFUSÉ (FICHIER_DIFFERENT)",
+      "observe": "REFUSÉ (FICHIER_DIFFERENT)",
+      "conforme": true,
+      "message": "Fichier différent : ce PDF n'est pas celui qui a été signé.",
+      "controles": {
+        "Preuve": true,
+        "Émetteur reconnu": true,
+        "Signature": true,
+        "Intégrité du PDF": false,
+        "Statut (registre)": true
+      }
+    },
+    {
+      "id": "S2b",
+      "scenario": "Note modifiée dans le PDF",
+      "attendu": "REFUSÉ (FICHIER_DIFFERENT)",
+      "observe": "REFUSÉ (FICHIER_DIFFERENT)",
+      "conforme": true,
+      "message": "Fichier différent : ce PDF n'est pas celui qui a été signé.",
+      "controles": {
+        "Preuve": true,
+        "Émetteur reconnu": true,
+        "Signature": true,
+        "Intégrité du PDF": false,
+        "Statut (registre)": true
+      }
+    },
+    {
+      "id": "S2c",
+      "scenario": "Date modifiée dans le PDF",
+      "attendu": "REFUSÉ (FICHIER_DIFFERENT)",
+      "observe": "REFUSÉ (FICHIER_DIFFERENT)",
+      "conforme": true,
+      "message": "Fichier différent : ce PDF n'est pas celui qui a été signé.",
+      "controles": {
+        "Preuve": true,
+        "Émetteur reconnu": true,
+        "Signature": true,
+        "Intégrité du PDF": false,
+        "Statut (registre)": true
+      }
+    },
+    {
+      "id": "S2d",
+      "scenario": "Un seul bit du PDF modifié",
+      "attendu": "REFUSÉ (FICHIER_DIFFERENT)",
+      "observe": "REFUSÉ (FICHIER_DIFFERENT)",
+      "conforme": true,
+      "message": "Fichier différent : ce PDF n'est pas celui qui a été signé.",
+      "controles": {
+        "Preuve": true,
+        "Émetteur reconnu": true,
+        "Signature": true,
+        "Intégrité du PDF": false,
+        "Statut (registre)": true
+      }
+    },
+    {
+      "id": "S3a",
+      "scenario": "Signature altérée (1 bit)",
+      "attendu": "REFUSÉ (SIGNATURE_INCORRECTE)",
+      "observe": "REFUSÉ (SIGNATURE_INCORRECTE)",
+      "conforme": true,
+      "message": "Signature incorrecte : la preuve a été altérée ou n'a pas été produite par cet émetteur.",
+      "controles": {
+        "Preuve": true,
+        "Émetteur reconnu": true,
+        "Signature": false,
+        "Intégrité du PDF": true,
+        "Statut (registre)": null
+      }
+    },
+    {
+      "id": "S3b",
+      "scenario": "Preuve d'un autre PDF",
+      "attendu": "REFUSÉ (FICHIER_DIFFERENT)",
+      "observe": "REFUSÉ (FICHIER_DIFFERENT)",
+      "conforme": true,
+      "message": "Fichier différent : ce PDF n'est pas celui qui a été signé.",
+      "controles": {
+        "Preuve": true,
+        "Émetteur reconnu": true,
+        "Signature": true,
+        "Intégrité du PDF": false,
+        "Statut (registre)": true
+      }
+    },
+    {
+      "id": "S3c",
+      "scenario": "Empreinte remplacée dans la preuve par celle du faux PDF",
+      "attendu": "REFUSÉ (SIGNATURE_INCORRECTE)",
+      "observe": "REFUSÉ (SIGNATURE_INCORRECTE)",
+      "conforme": true,
+      "message": "Signature incorrecte : la preuve a été altérée ou n'a pas été produite par cet émetteur.",
+      "controles": {
+        "Preuve": true,
+        "Émetteur reconnu": true,
+        "Signature": false,
+        "Intégrité du PDF": true,
+        "Statut (registre)": null
+      }
+    },
+    {
+      "id": "S4",
+      "scenario": "Document signé par un émetteur inconnu (fausse AC)",
+      "attendu": "REFUSÉ (EMETTEUR_INCONNU)",
+      "observe": "REFUSÉ (EMETTEUR_INCONNU)",
+      "conforme": true,
+      "message": "Émetteur non reconnu : le certificat ne provient pas d'une autorité de confiance.",
+      "controles": {
+        "Preuve": true,
+        "Émetteur reconnu": false,
+        "Signature": true,
+        "Intégrité du PDF": true,
+        "Statut (registre)": null
+      }
+    },
+    {
+      "id": "S5",
+      "scenario": "Attestation annulée",
+      "attendu": "REFUSÉ (DOCUMENT_REVOQUE)",
+      "observe": "REFUSÉ (DOCUMENT_REVOQUE)",
+      "conforme": true,
+      "message": "Document annulé : signature correcte, mais l'établissement a révoqué cette attestation.",
+      "controles": {
+        "Preuve": true,
+        "Émetteur reconnu": true,
+        "Signature": true,
+        "Intégrité du PDF": true,
+        "Statut (registre)": false
+      }
+    },
+    {
+      "id": "S6a",
+      "scenario": "Registre inaccessible",
+      "attendu": "NON CONFIRMÉ (REGISTRE_INACCESSIBLE)",
+      "observe": "NON CONFIRMÉ (REGISTRE_INACCESSIBLE)",
+      "conforme": true,
+      "message": "Signature et intégrité vérifiées, mais le statut n'est pas confirmé : le registre de l'établissement est inaccessible.",
+      "controles": {
+        "Preuve": true,
+        "Émetteur reconnu": true,
+        "Signature": true,
+        "Intégrité du PDF": true,
+        "Statut (registre)": null
+      }
+    },
+    {
+      "id": "S6b",
+      "scenario": "Retour du registre",
+      "attendu": "ACCEPTÉ (OK)",
+      "observe": "ACCEPTÉ (OK)",
+      "conforme": true,
+      "message": "Document authentique, intact et valide, émis par Université Fictive du Saguenay.",
+      "controles": {
+        "Preuve": true,
+        "Émetteur reconnu": true,
+        "Signature": true,
+        "Intégrité du PDF": true,
+        "Statut (registre)": true
+      }
+    },
+    {
+      "id": "S7",
+      "scenario": "Preuve absente",
+      "attendu": "REFUSÉ (PREUVE_ABSENTE)",
+      "observe": "REFUSÉ (PREUVE_ABSENTE)",
+      "conforme": true,
+      "message": "Preuve absente : impossible de vérifier l'origine du document.",
+      "controles": {
+        "Preuve": false
+      }
+    },
+    {
+      "id": "S8a",
+      "scenario": "Réponse du registre forgée (document révoqué déclaré valide)",
+      "attendu": "NON CONFIRMÉ (REPONSE_REGISTRE_INVALIDE)",
+      "observe": "NON CONFIRMÉ (REPONSE_REGISTRE_INVALIDE)",
+      "conforme": true,
+      "message": "Signature et intégrité vérifiées, mais la réponse du registre n'est pas authentique : statut non confirmé.",
+      "controles": {
+        "Preuve": true,
+        "Émetteur reconnu": true,
+        "Signature": true,
+        "Intégrité du PDF": true,
+        "Statut (registre)": null
+      }
+    },
+    {
+      "id": "S8b",
+      "scenario": "Réponse du registre rejouée (mauvais nonce)",
+      "attendu": "NON CONFIRMÉ (REPONSE_REGISTRE_INVALIDE)",
+      "observe": "NON CONFIRMÉ (REPONSE_REGISTRE_INVALIDE)",
+      "conforme": true,
+      "message": "Signature et intégrité vérifiées, mais la réponse du registre n'est pas authentique : statut non confirmé.",
+      "controles": {
+        "Preuve": true,
+        "Émetteur reconnu": true,
+        "Signature": true,
+        "Intégrité du PDF": true,
+        "Statut (registre)": null
+      }
+    }
+  ]
+}
