@@ -268,7 +268,11 @@ def create_app(paths: Paths | None = None, *, status_lookup=None, results_dir: P
         meta_path = demo_dir / "kit.json"
         if not meta_path.exists():
             return []
-        return json.loads(meta_path.read_text(encoding="utf-8"))
+        kit = json.loads(meta_path.read_text(encoding="utf-8"))
+        # Kit généré par une version antérieure (avant la preuve jointe au PDF) : à régénérer
+        if {k.get("id") for k in kit} != set(KIT_EXPECTED):
+            return []
+        return kit
 
     def _last_tests():
         p = app.config["RESULTS_DIR"] / "scenarios.json"

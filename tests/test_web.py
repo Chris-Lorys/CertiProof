@@ -149,3 +149,14 @@ def test_guided_demo(app):
     assert c.get("/demo/guidee/media/original.png").status_code == 200
     assert c.get("/demo/guidee/media/..%2Fsecret_key").status_code == 404
     assert c.get("/demo/guidee/99").status_code == 404
+
+
+def test_guided_demo_from_older_version_is_reprepared(paths):
+    import json as _json
+    from certiproof import guided
+    d = guided.guided_dir(paths)
+    d.mkdir(parents=True, exist_ok=True)
+    (d / "meta.json").write_text(_json.dumps({"prepared_at": "ancienne version"}), encoding="utf-8")
+    assert guided.load_meta(paths) is None
+    guided.prepare(paths)
+    assert guided.load_meta(paths)["version"] == guided.META_VERSION

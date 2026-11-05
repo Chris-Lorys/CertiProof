@@ -124,6 +124,13 @@
 </div>
 <p style="text-align:center;color:var(--muted)">Le vérificateur ne connaît à l'avance qu'une seule chose : le certificat de l'autorité de certification.</p>
 <p style="text-align:center;margin-top:24px"><a class="btn" style="font-size:18px;padding:12px 28px" href="{{ url_for('guided_step', n=1) }}">Commencer la démonstration →</a></p>
+{% if meta and session.get("role") %}
+<form method="post" action="{{ url_for('guided_prepare') }}" style="text-align:center;margin-top:10px">
+  <input type="hidden" name="csrf" value="{{ csrf_token() }}"><input type="hidden" name="n" value="0">
+  <button class="secondary" style="font-size:13px;padding:6px 12px">Préparer de nouveaux documents de démonstration</button>
+</form>
+<p class="muted" style="text-align:center;font-size:12px">Préparée le {{ meta.prepared_at }}</p>
+{% endif %}
 
 {# ------------------------------------------------------------------ #}
 {% elif step.visual == "summary" %}
@@ -152,7 +159,7 @@
 {# ------------------------------------------------------------------ #}
 {% elif not meta %}
 <div class="panel" style="text-align:center;padding:40px">
-  <p style="font-size:18px">La démonstration n'est pas encore préparée. Elle va émettre un diplôme authentique, une attestation
+  <p style="font-size:18px">La démonstration n'est pas encore préparée, ou elle date d'une version précédente de CertiProof. Elle va émettre un diplôme authentique, une attestation
     annulée, et fabriquer les falsifications.</p>
   {% if session.get("role") %}
   <form method="post" action="{{ url_for('guided_prepare') }}">

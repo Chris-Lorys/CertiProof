@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import io
 import json
+import shutil
 from pathlib import Path
 
 import pypdfium2 as pdfium
@@ -123,6 +124,10 @@ STEPS = [
 ]
 
 
+# À incrémenter quand le contenu de la démo change : une démo plus ancienne est re-préparée
+META_VERSION = 2
+
+
 def guided_dir(paths: Paths) -> Path:
     return paths.root / "guided"
 
@@ -154,7 +159,9 @@ def _flip_one_bit(pdf: bytes) -> tuple[bytes, int]:
 
 def prepare(paths: Paths) -> dict:
     out = guided_dir(paths)
-    out.mkdir(parents=True, exist_ok=True)
+    if out.exists():
+        shutil.rmtree(out)
+    out.mkdir(parents=True)
     svc = IssuerService(paths)
 
     original = svc.issue(alg="ecdsa", **ORIGINAL)
@@ -203,6 +210,7 @@ def prepare(paths: Paths) -> dict:
 
     trust = pki.load_trust_store(paths.trust_dir)
     meta = {
+        "version": META_VERSION,
         "prepared_at": utc_iso(),
         "issuer_name": svc.issuer_name,
         "original_doc_id": original.doc_id,
@@ -236,8 +244,13 @@ def _cert_info(cert) -> dict:
 
 
 def load_meta(paths: Paths) -> dict | None:
+    """Métadonnées de la démo préparée, ou None si elle n'existe pas ou date d'une version antérieure
+    (par exemple d'avant la preuve jointe au PDF) : il faut alors la préparer à nouveau."""
     p = guided_dir(paths) / "meta.json"
-    return json.loads(p.read_text(encoding="utf-8")) if p.exists() else None
+    if not p.exists():
+        return None
+    meta = json.loads(p.read_text(encoding="utf-8"))
+    return meta if meta.get("version") == META_VERSION else None
 
 
 def files_for(paths: Paths, step: dict) -> tuple[bytes, None]:
