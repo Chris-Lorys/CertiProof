@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="card">
+  <h2>Comparer RSA-PSS et ECDSA</h2>
+  <p class="muted">Mesure la génération de clé, la signature et la vérification d'un enregistrement CertiProof,
+    à niveau de sécurité comparable (128 bits : RSA-3072 contre P-256). Le coût de SHA-256 est mesuré à part.
+    Les résultats sont écrits dans <code>results/bench.md</code>, <code>bench.csv</code> et <code>bench.json</code>.</p>
+  <form method="post">
+    <input type="hidden" name="csrf" value="{{ csrf_token() }}">
+    <div class="grid" style="align-items:end">
+      <p><label>Répétitions par mesure</label><input name="n" type="number" min="10" max="2000" value="200"></p>
+      <p><label><input type="checkbox" name="all_levels" value="1" style="width:auto"> Ajouter 192 bits (RSA-7680 / P-384, plusieurs secondes)</label></p>
+    </div>
+    <button>Lancer les mesures</button>
+  </form>
+</div>
+
+{% if data %}
+{% set rows = data.signatures %}
+<div class="card">
+  <h2>Résultats</h2>
+  <p class="muted">{{ data.conditions.date }} · {{ data.conditions.platform }} · Python {{ data.conditions.python }} ·
+    {{ data.conditions.openssl }} · {{ rows[0].signature.n }} répétitions (médiane ± écart-type)</p>
+  {% for metric, label, unit in [("signature", "Signature", "ms"), ("verification", "Vérification", "ms")] %}
+    {% set mx = rows | map(attribute=metric) | map(attribute="mediane_ms") | max %}
+    <h3 style="font-size:14px;margin:18px 0 8px">{{ label }} (médiane, {{ unit }})</h3>
+    {% for r in rows %}
+    <div style="display:grid;grid-template-columns:170px 1fr 120px;gap:10px;align-items:center;margin:4px 0">
+      <span>{{ r.algorithme }} <span class="muted">({{ r.niveau_bits }})</span></span>
+      <div><div class="bar {{ 'alt' if 'ECDSA' in r.algorithme }}" style="width:{{ [100 * r[metric].mediane_ms / mx, 1] | max }}%"></div></div>
+      <span>{{ "%.3f" | format(r[metric].mediane_ms) }} ± {{ "%.3f" | format(r[metric].ecart_type_ms) }}</span>
+    </div>
+    {% endfor %}
+  {% endfor %}
+  <table style="margin-top:18px">
+    <tr><th>Algorithme</th><th>Niveau</th><th>Génération de clé (ms)</th><th>Signature (octets)</th><th>Clé publique (octets)</th><th>Preuve JSON (octets)</th></tr>
+    {% for r in rows %}
+    {% set t = r.taille_signature_octets %}
+    <tr><td>{{ r.algorithme }}</td><td>{{ r.niveau_bits }} bits</td>
+      <td>{{ "%.2f" | format(r.generation_cle.mediane_ms) }}</td>
+      <td>{% if t.min == t.max %}{{ t.min }}{% else %}{{ t.min }} à {{ t.max }}{% endif %}</td>
+      <td>{{ r.taille_cle_publique_der_octets }}</td><td>{{ r.taille_preuve_json_octets }}</td></tr>
+    {% endfor %}
+  </table>
+</div>
+<div class="card">
+  <h2>Coût du hachage SHA-256</h2>
+  <table>
+    <tr><th>Taille du PDF</th><th>Médiane (ms)</th><th>Débit (Mo/s)</th></tr>
+    {% for h in data.sha256 %}
+    <tr><td>{{ "%g" | format(h.taille_octets / 1e6) }} Mo</td><td>{{ "%.3f" | format(h.mediane_ms) }}</td><td>{{ "%.0f" | format(h.debit_mo_s) }}</td></tr>
+    {% endfor %}
+  </table>
+</div>
+{% endif %}
+{% endblock %}

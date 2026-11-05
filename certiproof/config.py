@@ -16,8 +16,8 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_ISSUER_ID = "UFS"
 DEFAULT_ISSUER_NAME = "Université Fictive du Saguenay"
 
-DEFAULT_ISSUER_PORT = 5001
-DEFAULT_VERIFIER_PORT = 5002
+# Port de l'application ; le registre est servi par la même application
+DEFAULT_PORT = 5001
 
 
 @dataclass(frozen=True)

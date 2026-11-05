@@ -8,7 +8,7 @@ import secrets
 from dataclasses import dataclass
 
 from . import pki, signing
-from .config import DEFAULT_ISSUER_PORT, Paths
+from .config import DEFAULT_PORT, Paths
 from .pdfgen import DOC_TYPES, AttestationData, generate_pdf
 from .proof import b64e, build_proof, dump_proof, status_bytes, utc_iso
 from .registry import Registry
@@ -36,7 +36,7 @@ class IssuerService:
         self.issuer_id: str = cfg["issuer_id"]
         self.issuer_name: str = cfg["issuer_name"]
         self.registry_url = registry_url or cfg.get(
-            "registry_url", f"http://127.0.0.1:{DEFAULT_ISSUER_PORT}/api/registry")
+            "registry_url", f"http://127.0.0.1:{DEFAULT_PORT}/api/registry")
         self.registry = Registry(paths.db)
         self.keys = {alg: pki.load_private_key(paths.issuer_key(alg)) for alg in ("rsa", "ecdsa")}
         self.certs = {alg: pki.load_cert(paths.issuer_cert(alg)) for alg in ("rsa", "ecdsa")}

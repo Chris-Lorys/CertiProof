@@ -1,4 +1,8 @@
-"""Ligne de commande : python -m certiproof <commande>."""
+"""Ligne de commande.
+
+`python -m certiproof` sans argument lance l'application web et ouvre le navigateur.
+Les autres commandes (init, issue, verify, scenarios, bench...) restent disponibles.
+"""
 
 from __future__ import annotations
 
@@ -8,8 +12,7 @@ import secrets
 import sys
 from pathlib import Path
 
-from .config import (DEFAULT_ISSUER_ID, DEFAULT_ISSUER_NAME, DEFAULT_ISSUER_PORT, DEFAULT_VERIFIER_PORT,
-                     PROJECT_ROOT, Paths)
+from .config import DEFAULT_ISSUER_ID, DEFAULT_ISSUER_NAME, DEFAULT_PORT, PROJECT_ROOT, Paths
 
 
 def cmd_init(args, paths: Paths) -> None:
@@ -92,29 +95,30 @@ def cmd_bench(args, paths: Paths) -> None:
     print((Path(args.out) / "bench.md").read_text(encoding="utf-8"))
 
 
-def cmd_serve_issuer(args, paths: Paths) -> None:
-    from .web import create_issuer_app
+def cmd_serve(args, paths: Paths) -> None:
+    import threading
+    import webbrowser
 
-    create_issuer_app(paths).run(host=args.host, port=args.port, debug=False)
+    from .web import create_app
 
-
-def cmd_serve_verifier(args, paths: Paths) -> None:
-    from .web import create_verifier_app
-
-    create_verifier_app(paths).run(host=args.host, port=args.port, debug=False)
+    url = f"http://{args.host}:{args.port}/"
+    print(f"CertiProof démarre sur {url}  (Ctrl+C pour arrêter)")
+    if not args.no_browser:
+        threading.Timer(1.0, lambda: webbrowser.open(url)).start()
+    create_app(paths).run(host=args.host, port=args.port, debug=False, threaded=True)
 
 
 def main(argv=None) -> None:
     p = argparse.ArgumentParser(prog="certiproof", description=__doc__)
     p.add_argument("--data", help="Répertoire des données locales (défaut : ./data ou $CERTIPROOF_DATA)")
-    sub = p.add_subparsers(dest="cmd", required=True)
+    sub = p.add_subparsers(dest="cmd")
 
     s = sub.add_parser("init", help="Créer la PKI de démonstration, le registre et le compte de l'établissement")
     s.add_argument("--issuer-id", default=DEFAULT_ISSUER_ID)
     s.add_argument("--issuer-name", default=DEFAULT_ISSUER_NAME)
     s.add_argument("--username", default="registraire")
     s.add_argument("--password")
-    s.add_argument("--registry-url", help=f"défaut : http://127.0.0.1:{DEFAULT_ISSUER_PORT}/api/registry")
+    s.add_argument("--registry-url", help=f"défaut : http://127.0.0.1:{DEFAULT_PORT}/api/registry")
     s.add_argument("--force", action="store_true", help="Écraser une PKI existante")
     s.add_argument("--openssl", action="store_true", help="Créer la PKI avec la CLI OpenSSL (scripts/pki_openssl.sh)")
     s.set_defaults(func=cmd_init)
@@ -151,13 +155,19 @@ def main(argv=None) -> None:
     s.add_argument("--all-levels", action="store_true", help="Ajouter le niveau 192 bits (RSA 7680, lent)")
     s.set_defaults(func=cmd_bench)
 
-    for name, func, port in (("serve-issuer", cmd_serve_issuer, DEFAULT_ISSUER_PORT),
-                             ("serve-verifier", cmd_serve_verifier, DEFAULT_VERIFIER_PORT)):
-        s = sub.add_parser(name, help=f"Lancer l'interface web (port {port})")
-        s.add_argument("--host", default="127.0.0.1")
-        s.add_argument("--port", type=int, default=port)
-        s.set_defaults(func=func)
+    s = sub.add_parser("serve", help="Lancer l'application web (commande par défaut)")
+    s.add_argument("--host", default="127.0.0.1")
+    s.add_argument("--port", type=int, default=DEFAULT_PORT)
+    s.add_argument("--no-browser", action="store_true", help="Ne pas ouvrir le navigateur")
+    s.set_defaults(func=cmd_serve)
 
+    argv = sys.argv[1:] if argv is None else argv
+    # Sans commande : lancer l'application
+    if not any(a in sub.choices for a in argv) and not any(a in ("-h", "--help") for a in argv):
+        i = 0
+        while i < len(argv) and (argv[i] == "--data" or argv[i].startswith("--data=")):
+            i += 1 if "=" in argv[i] else 2
+        argv = [*argv[:i], "serve", *argv[i:]]
     args = p.parse_args(argv)
     paths = Paths(Path(args.data)) if args.data else Paths.default()
     args.func(args, paths)

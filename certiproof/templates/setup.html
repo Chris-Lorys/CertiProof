@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="card" style="max-width:560px;margin:32px auto">
+  <h2>Bienvenue dans CertiProof</h2>
+  <p class="muted">Premier lancement : l'application va créer une autorité de certification de démonstration,
+    les clés RSA-3072 et ECDSA P-256 de l'établissement, leurs certificats, le registre SQLite et le compte
+    de l'établissement. Les clés restent sur cet ordinateur, dans le dossier <code>data/</code>.</p>
+  <form method="post">
+    <input type="hidden" name="csrf" value="{{ csrf_token() }}">
+    <p><label>Nom de l'établissement (fictif)</label>
+      <input name="issuer_name" value="{{ form.get('issuer_name', 'Université Fictive du Saguenay') }}"></p>
+    <p><label>Identifiant de l'établissement</label>
+      <input name="issuer_id" value="{{ form.get('issuer_id', 'UFS') }}"></p>
+    <div class="grid">
+      <p><label>Compte de l'établissement</label><input name="username" value="{{ form.get('username', 'registraire') }}"></p>
+      <p><label>Mot de passe</label><input name="password" type="password" required></p>
+    </div>
+    <button>Créer l'installation</button>
+  </form>
+</div>
+{% endblock %}

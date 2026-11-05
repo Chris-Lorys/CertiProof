@@ -3,17 +3,30 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>CertiProof · {{ "Émission" if space == "emission" else "Vérification" }}</title>
+<title>CertiProof</title>
 <style>
   :root { --bg:#f5f7fa; --card:#fff; --ink:#1b2430; --muted:#5d6b7a; --line:#dde3ea;
           --brand:#1f3a5f; --ok:#1e7a46; --ok-bg:#e6f4ec; --ko:#b42318; --ko-bg:#fdecea;
           --warn:#9a6700; --warn-bg:#fff4d6; }
   * { box-sizing:border-box; }
   body { margin:0; font:15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; background:var(--bg); color:var(--ink); }
-  header { background:var(--brand); color:#fff; padding:14px 24px; display:flex; align-items:center; gap:16px; }
-  header h1 { font-size:18px; margin:0; }
-  header .tag { font-size:12px; background:rgba(255,255,255,.15); padding:2px 8px; border-radius:10px; }
-  header form { margin-left:auto; }
+  header { background:var(--brand); color:#fff; padding:0 24px; display:flex; align-items:center; gap:24px; flex-wrap:wrap; min-height:56px; }
+  header .brand { color:#fff; font-weight:700; font-size:18px; text-decoration:none; }
+  header nav { display:flex; gap:4px; flex-wrap:wrap; }
+  header nav a { color:rgba(255,255,255,.75); text-decoration:none; padding:16px 12px; border-bottom:3px solid transparent; }
+  header nav a:hover { color:#fff; }
+  header nav a.on { color:#fff; border-bottom-color:#fff; font-weight:600; }
+  header .right { margin-left:auto; display:flex; align-items:center; gap:12px; }
+  header .tag { font-size:12px; padding:3px 10px; border-radius:10px; font-weight:600; }
+  header .tag.warn { background:var(--warn-bg); color:var(--warn); }
+  .cards { display:grid; grid-template-columns:repeat(auto-fit, minmax(220px, 1fr)); gap:16px; margin-bottom:20px; }
+  .cards .card { margin:0; display:flex; flex-direction:column; }
+  .cards .card p { flex:1; }
+  a.btn { display:inline-block; background:var(--brand); color:#fff; border-radius:6px; padding:8px 14px; text-decoration:none; }
+  button.secondary, a.btn.secondary { background:#fff; color:var(--brand); border:1px solid var(--brand); }
+  .bar { height:10px; border-radius:5px; background:var(--brand); }
+  .bar.alt { background:#6b8fb8; }
+  .inline { display:inline; }
   main { max-width:1000px; margin:24px auto; padding:0 16px; }
   .card { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:20px; margin-bottom:20px; }
   h2 { font-size:17px; margin:0 0 14px; }
@@ -54,13 +67,25 @@
 </head>
 <body>
 <header>
-  <h1>CertiProof</h1>
-  <span class="tag">{{ "Espace d'émission" if space == "emission" else "Espace de vérification" }}</span>
-  {% if space == "emission" and session.get("role") %}
-  <form method="post" action="{{ url_for('logout') }}">
-    <input type="hidden" name="csrf" value="{{ csrf_token() }}">
-    <button class="ghost">Déconnexion ({{ session.get("user") }})</button>
-  </form>
+  <a class="brand" href="{{ url_for('home') }}">CertiProof</a>
+  {% if g.ready %}
+  <nav>
+    {% set ep = request.endpoint or '' %}
+    <a href="{{ url_for('home') }}" class="{{ 'on' if ep == 'home' }}">Accueil</a>
+    <a href="{{ url_for('emission') }}" class="{{ 'on' if ep in ('emission', 'login') }}">Émission</a>
+    <a href="{{ url_for('verification') }}" class="{{ 'on' if ep in ('verification', 'verify') }}">Vérification</a>
+    <a href="{{ url_for('demo') }}" class="{{ 'on' if ep == 'demo' }}">Démonstration</a>
+    <a href="{{ url_for('mesures') }}" class="{{ 'on' if ep == 'mesures' }}">Mesures</a>
+  </nav>
+  <div class="right">
+    {% if registry_offline %}<span class="tag warn">Registre hors ligne</span>{% endif %}
+    {% if session.get("role") %}
+    <form method="post" action="{{ url_for('logout') }}">
+      <input type="hidden" name="csrf" value="{{ csrf_token() }}">
+      <button class="ghost">Déconnexion ({{ session.get("user") }})</button>
+    </form>
+    {% endif %}
+  </div>
   {% endif %}
 </header>
 <main>
