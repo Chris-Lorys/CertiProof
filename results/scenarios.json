@@ -1,8 +1,8 @@
 {
   "conditions": {
-    "date": "2026-11-05T04:24:55Z",
+    "date": "2026-11-05T20:49:26Z",
     "python": "3.13.18",
-    "platform": "Linux-6.18.44-fc-v236-x86_64-with-glibc2.39",
+    "platform": "Linux-6.18.44-fc-v242-x86_64-with-glibc2.39",
     "machine": "x86_64",
     "processor": "x86_64",
     "cryptography": "50.0.2",
@@ -11,7 +11,7 @@
   "resultats": [
     {
       "id": "S1a",
-      "scenario": "PDF original + preuve correcte (RSA-PSS)",
+      "scenario": "PDF signé original (RSA-PSS)",
       "attendu": "ACCEPTÉ (OK)",
       "observe": "ACCEPTÉ (OK)",
       "conforme": true,
@@ -26,7 +26,22 @@
     },
     {
       "id": "S1b",
-      "scenario": "PDF original + preuve correcte (ECDSA)",
+      "scenario": "PDF signé original (ECDSA)",
+      "attendu": "ACCEPTÉ (OK)",
+      "observe": "ACCEPTÉ (OK)",
+      "conforme": true,
+      "message": "Document authentique, intact et valide, émis par Université Fictive du Saguenay.",
+      "controles": {
+        "Preuve": true,
+        "Émetteur reconnu": true,
+        "Signature": true,
+        "Intégrité du PDF": true,
+        "Statut (registre)": true
+      }
+    },
+    {
+      "id": "S1c",
+      "scenario": "PDF d'origine + preuve fournie à part (compatibilité)",
       "attendu": "ACCEPTÉ (OK)",
       "observe": "ACCEPTÉ (OK)",
       "conforme": true,
@@ -86,11 +101,26 @@
     },
     {
       "id": "S2d",
-      "scenario": "Un seul bit du PDF modifié",
+      "scenario": "Un seul bit modifié dans la partie signée",
       "attendu": "REFUSÉ (FICHIER_DIFFERENT)",
       "observe": "REFUSÉ (FICHIER_DIFFERENT)",
       "conforme": true,
       "message": "Fichier différent : ce PDF n'est pas celui qui a été signé.",
+      "controles": {
+        "Preuve": true,
+        "Émetteur reconnu": true,
+        "Signature": true,
+        "Intégrité du PDF": false,
+        "Statut (registre)": true
+      }
+    },
+    {
+      "id": "S2e",
+      "scenario": "Note remplacée par une mise à jour ajoutée après la signature",
+      "attendu": "REFUSÉ (CONTENU_AJOUTE_APRES_SIGNATURE)",
+      "observe": "REFUSÉ (CONTENU_AJOUTE_APRES_SIGNATURE)",
+      "conforme": true,
+      "message": "Contenu ajouté après la signature : les octets signés sont intacts, mais le PDF a été complété ensuite et peut afficher autre chose.",
       "controles": {
         "Preuve": true,
         "Émetteur reconnu": true,
@@ -116,7 +146,7 @@
     },
     {
       "id": "S3b",
-      "scenario": "Preuve d'un autre PDF",
+      "scenario": "Preuve d'un autre document jointe au PDF",
       "attendu": "REFUSÉ (FICHIER_DIFFERENT)",
       "observe": "REFUSÉ (FICHIER_DIFFERENT)",
       "conforme": true,
@@ -131,7 +161,7 @@
     },
     {
       "id": "S3c",
-      "scenario": "Empreinte remplacée dans la preuve par celle du faux PDF",
+      "scenario": "Empreinte de la preuve remplacée par celle du faux PDF",
       "attendu": "REFUSÉ (SIGNATURE_INCORRECTE)",
       "observe": "REFUSÉ (SIGNATURE_INCORRECTE)",
       "conforme": true,
@@ -206,11 +236,11 @@
     },
     {
       "id": "S7",
-      "scenario": "Preuve absente",
+      "scenario": "PDF sans preuve CertiProof",
       "attendu": "REFUSÉ (PREUVE_ABSENTE)",
       "observe": "REFUSÉ (PREUVE_ABSENTE)",
       "conforme": true,
-      "message": "Preuve absente : impossible de vérifier l'origine du document.",
+      "message": "Preuve absente : ce PDF ne contient pas de preuve CertiProof, impossible de vérifier son origine.",
       "controles": {
         "Preuve": false
       }

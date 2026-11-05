@@ -76,14 +76,15 @@ def test_full_flow_issue_verify_revoke_and_outage(app):
                                         "grade": "Bien", "date": "2026-11-05", "alg": "rsa"}, follow_redirects=True)
     doc_id = re.search(r"Attestation (UFS-\d{4}-[0-9A-F]+) émise", r.get_data(as_text=True)).group(1)
     pdf = c.get(f"/emission/{doc_id}.pdf").data
-    proof = c.get(f"/emission/{doc_id}.proof.json").data
+    assert b"certiproof-proof.json" in pdf  # un seul fichier : la preuve est jointe
+    assert c.get(f"/emission/{doc_id}.proof.json").status_code == 404
 
     def check():
-        return c.post("/api/verify", data={"pdf": (io.BytesIO(pdf), "a.pdf"), "proof": (io.BytesIO(proof), "p.json")},
+        return c.post("/api/verify", data={"pdf": (io.BytesIO(pdf), "a.pdf")},
                       content_type="multipart/form-data").get_json()["code"]
 
-    r = c.post("/verification", data={"csrf": tok, "pdf": (io.BytesIO(pdf), "a.pdf"),
-                                      "proof": (io.BytesIO(proof), "a.proof.json")}, content_type="multipart/form-data")
+    r = c.post("/verification", data={"csrf": tok, "pdf": (io.BytesIO(pdf), "a.pdf")},
+               content_type="multipart/form-data")
     assert "ACCEPTÉ" in r.get_data(as_text=True)
 
     c.post("/demo/registry", data={"csrf": tok, "offline": "1"})
@@ -116,7 +117,7 @@ def test_demo_tests_and_bench_from_ui(app):
     c = app.test_client()
     tok = csrf(c.get("/demo").data)
     r = c.post("/demo/tests", data={"csrf": tok}, follow_redirects=True)
-    assert "16 scénarios sur 16 conformes" in r.get_data(as_text=True)
+    assert "18 scénarios sur 18 conformes" in r.get_data(as_text=True)
     r = c.post("/mesures", data={"csrf": tok, "n": "10"}, follow_redirects=True)
     assert "ECDSA P-256" in r.get_data(as_text=True)
 
@@ -138,7 +139,7 @@ def test_guided_demo(app):
     tok = login(c)
     c.post("/demo/guidee/preparer", data={"csrf": tok, "n": "1"})
     expected = {"authentique": "OK", "note": "FICHIER_DIFFERENT", "avalanche": "FICHIER_DIFFERENT",
-                "preuve": "SIGNATURE_INCORRECTE", "faussaire": "EMETTEUR_INCONNU", "revoque": "DOCUMENT_REVOQUE",
+                "preuve": "SIGNATURE_INCORRECTE", "couche": "CONTENU_AJOUTE_APRES_SIGNATURE", "faussaire": "EMETTEUR_INCONNU", "revoque": "DOCUMENT_REVOQUE",
                 "panne": "REGISTRE_INACCESSIBLE", "registre_forge": "REPONSE_REGISTRE_INVALIDE"}
     for n, step in enumerate(guided.STEPS):
         page = c.get(f"/demo/guidee/{n}")

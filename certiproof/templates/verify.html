@@ -2,13 +2,13 @@
 {% block content %}
 <div class="card">
   <h2>Vérifier une attestation</h2>
-  <p class="muted">Déposez le PDF reçu et son fichier de preuve. Le vérificateur répond à trois questions :
-    qui l'a signé, a-t-il changé, est-il encore valide ?</p>
+  <p class="muted">Déposez le PDF reçu : la preuve CertiProof est jointe à l'intérieur du fichier. Le vérificateur
+    répond à trois questions : qui l'a signé, a-t-il changé, est-il encore valide ?</p>
   <form method="post" action="{{ url_for('verify') }}" enctype="multipart/form-data">
     <input type="hidden" name="csrf" value="{{ csrf_token() }}">
     <div class="grid">
       <p><label>Document PDF</label><input type="file" name="pdf" accept="application/pdf,.pdf" required></p>
-      <p><label>Fichier de preuve (.proof.json)</label><input type="file" name="proof" accept=".json,application/json"></p>
+      <p><label>Preuve séparée (.proof.json, facultatif)</label><input type="file" name="proof" accept=".json,application/json"></p>
     </div>
     <button>Vérifier</button>
   </form>
@@ -44,6 +44,10 @@
     <dt>Algorithme</dt><dd>{{ result.info.algorithm }} ({{ result.info.signature_bytes }} octets)</dd>
     <dt>SHA-256 attendu</dt><dd><code>{{ result.info.expected_sha256 }}</code></dd>
     <dt>SHA-256 calculé</dt><dd><code>{{ result.info.pdf_sha256 }}</code></dd>
+    {% if result.info.signed_bytes %}<dt>Structure du fichier</dt><dd>{{ result.info.signed_bytes }} octets signés
+      {% if result.info.proof_bytes %} + {{ result.info.proof_bytes }} octets de preuve jointe{% endif %}
+      {% if result.info.extra_bytes %} + <strong style="color:var(--ko)">{{ result.info.extra_bytes }} octets ajoutés après signature</strong>{% endif %}
+      = {{ result.info.total_bytes }} octets</dd>{% endif %}
     {% for k, v in result.timings_ms.items() %}<dt>Temps {{ k }}</dt><dd>{{ "%.3f"|format(v) }} ms</dd>{% endfor %}
   </dl>
 </div>

@@ -18,6 +18,7 @@ from . import pki, signing
 from .config import Paths
 from .issuer import IssuerService
 from .pdfgen import AttestationData, generate_pdf
+from .embedding import embed, overlay
 from .proof import b64e, build_proof, dump_proof, sha256_hex, status_bytes, utc_iso
 from .verifier import RegistryUnavailable
 
@@ -35,19 +36,20 @@ STEPS = [
     {
         "key": "authentique", "concept": "Cas nominal", "title": "Le diplôme authentique",
         "question": "L'Université Fictive du Saguenay délivre le diplôme d'Alice.",
-        "fraud": "Aucune fraude : Alice transmet son PDF et le fichier de preuve fourni par l'université.",
+        "fraud": "Aucune fraude : Alice transmet un seul fichier, le PDF signé. La preuve (empreinte, signature, "
+                 "certificat) est jointe à l'intérieur du PDF.",
         "explain": "Le certificat est reconnu, la signature est valide, l'empreinte SHA-256 du PDF est identique "
                    "à celle signée, et le registre confirme que le diplôme n'a pas été annulé.",
-        "visual": "document", "pdf": "original", "proof": "original", "lookup": "registry",
+        "visual": "document", "pdf": "original", "lookup": "registry",
     },
     {
         "key": "note", "concept": "SHA-256", "title": "Alice gonfle sa mention",
         "question": "Peut-on modifier le PDF sans que cela se voie ?",
         "fraud": "Alice remplace « Passable (GPA 2,3) » par « Excellent (GPA 4,1) » et garde la preuve d'origine. "
-                 "Le faux est visuellement parfait.",
+                 "La preuve jointe d'origine reste dans le fichier. Le faux est visuellement parfait.",
         "explain": "Le vérificateur recalcule l'empreinte SHA-256 du PDF reçu : elle ne correspond plus à celle que "
                    "l'université a signée. Changer quelques caractères change toute l'empreinte.",
-        "visual": "compare", "pdf": "forged", "proof": "original", "lookup": "registry",
+        "visual": "compare", "pdf": "forged", "lookup": "registry",
     },
     {
         "key": "avalanche", "concept": "Effet avalanche", "title": "Un seul bit suffit",
@@ -56,34 +58,45 @@ STEPS = [
                  "s'affichent exactement pareil.",
         "explain": "SHA-256 a un effet avalanche : un bit modifié en entrée change environ la moitié des 256 bits "
                    "de l'empreinte. Aucune modification, même invisible, n'échappe au contrôle.",
-        "visual": "avalanche", "pdf": "onebit", "proof": "original", "lookup": "registry",
+        "visual": "avalanche", "pdf": "onebit", "lookup": "registry",
     },
     {
         "key": "preuve", "concept": "Signature", "title": "Alice modifie aussi la preuve",
-        "question": "Et si le fraudeur met à jour l'empreinte dans le fichier de preuve ?",
-        "fraud": "Alice calcule le SHA-256 de son faux PDF et le recopie dans la preuve, à la place de l'empreinte "
-                 "d'origine. Maintenant, PDF et preuve concordent.",
+        "question": "Et si le fraudeur met à jour l'empreinte dans la preuve jointe ?",
+        "fraud": "Alice extrait la preuve jointe, y recopie le SHA-256 de son faux PDF à la place de l'empreinte "
+                 "d'origine, puis la joint au faux. Maintenant, PDF et preuve concordent.",
         "explain": "L'empreinte concorde, mais elle fait partie de l'enregistrement signé par l'université. "
                    "Modifié, il ne correspond plus à la signature, et Alice ne peut pas re-signer sans la clé privée.",
-        "visual": "proof_edit", "pdf": "forged", "proof": "forged_hash", "lookup": "registry",
+        "visual": "proof_edit", "pdf": "forged_hash", "lookup": "registry",
+    },
+    {
+        "key": "couche", "concept": "Mise à jour incrémentale", "title": "Alice ajoute une couche par-dessus",
+        "question": "Et si on ne touche à aucun octet signé ?",
+        "fraud": "Le format PDF permet d'ajouter des « mises à jour » à la fin d'un fichier. Alice en ajoute une qui "
+                 "remplace le texte de la page : le lecteur PDF affiche « Excellent (GPA 4,1) », alors que les octets "
+                 "signés n'ont pas changé d'un seul bit.",
+        "explain": "L'empreinte des octets signés est bien identique. Mais le vérificateur exige qu'après la partie "
+                   "signée il n'y ait que la preuve jointe, à l'octet près. Il trouve ici des octets ajoutés après la "
+                   "signature : document refusé. C'est le principe du ByteRange des signatures PDF officielles.",
+        "visual": "overlay", "pdf": "overlay", "lookup": "registry",
     },
     {
         "key": "faussaire", "concept": "PKI et certificats", "title": "Un faussaire crée sa propre université",
         "question": "Et s'il signe lui-même, avec sa propre clé ?",
         "fraud": "Un faussaire génère sa propre paire de clés et sa propre autorité de certification, au nom de "
-                 "l'« Université Fictive du Saguenay ». Il produit un PDF et une preuve parfaitement cohérents.",
+                 "l'« Université Fictive du Saguenay ». Il produit un PDF signé parfaitement cohérent.",
         "explain": "La signature est mathématiquement correcte, mais le certificat a été signé par « AC Pirate », "
                    "absente du magasin de confiance du vérificateur. Le registre n'est même pas contacté.",
-        "visual": "certs", "pdf": "rogue", "proof": "rogue", "lookup": "registry",
+        "visual": "certs", "pdf": "rogue", "lookup": "registry",
     },
     {
         "key": "revoque", "concept": "Révocation", "title": "Un document authentique, mais annulé",
         "question": "Un vrai document peut-il ne plus être valable ?",
         "fraud": "L'attestation de stage de Bob a été émise puis annulée par l'université (stage interrompu). "
-                 "Bob présente quand même le PDF et la preuve d'origine.",
+                 "Bob présente quand même le PDF signé d'origine.",
         "explain": "Signature, certificat et empreinte sont corrects : le document est authentique. Mais le registre "
                    "de l'université répond, par une réponse signée, que l'attestation est révoquée.",
-        "visual": "registry", "pdf": "revoked", "proof": "revoked", "lookup": "registry",
+        "visual": "registry", "pdf": "revoked", "lookup": "registry",
     },
     {
         "key": "panne", "concept": "Disponibilité", "title": "Le registre est en panne",
@@ -91,7 +104,7 @@ STEPS = [
         "fraud": "Le diplôme d'Alice est authentique, mais le serveur du registre de l'université est inaccessible.",
         "explain": "Les contrôles cryptographiques restent valides et affichés, mais on ne peut pas savoir si le "
                    "diplôme a été annulé. Le verdict est NON CONFIRMÉ : ce n'est pas une fraude, c'est une panne.",
-        "visual": "outage", "pdf": "original", "proof": "original", "lookup": "down",
+        "visual": "outage", "pdf": "original", "lookup": "down",
     },
     {
         "key": "registre_forge", "concept": "Réponse signée + nonce", "title": "On falsifie la réponse du registre",
@@ -100,7 +113,7 @@ STEPS = [
                  "avec sa propre clé.",
         "explain": "Les réponses du registre sont signées par l'université et contiennent le nonce aléatoire envoyé "
                    "par le vérificateur. La fausse réponse ne se vérifie pas : le statut n'est pas confirmé.",
-        "visual": "registry", "pdf": "revoked", "proof": "revoked", "lookup": "forged",
+        "visual": "registry", "pdf": "revoked", "lookup": "forged",
     },
     {
         "key": "bilan", "concept": "Bilan", "title": "Ce que CertiProof garantit",
@@ -145,33 +158,33 @@ def prepare(paths: Paths) -> dict:
     svc = IssuerService(paths)
 
     original = svc.issue(alg="ecdsa", **ORIGINAL)
+    base = original.base_pdf
     data = AttestationData(doc_id=original.doc_id, issuer_name=svc.issuer_name, **ORIGINAL)
-    forged_pdf = generate_pdf(AttestationData(**{**data.__dict__, "grade": FORGED_GRADE}))
+    forged_base = generate_pdf(AttestationData(**{**data.__dict__, "grade": FORGED_GRADE}))
+    forged_pdf = embed(forged_base, original.proof_bytes)
     onebit_pdf, bit_pos = _flip_one_bit(original.pdf)
 
     forged_hash_proof = json.loads(json.dumps(original.proof))
-    forged_hash_proof["record"]["pdf_sha256"] = sha256_hex(forged_pdf)
+    forged_hash_proof["record"].update(pdf_sha256=sha256_hex(forged_base), pdf_size=len(forged_base))
+    overlay_pdf = overlay(original.pdf, base, forged_base)
 
     rogue_key = pki.load_private_key(paths.rogue_dir / "rogue-ecdsa.key.pem")
     rogue_cert = pki.load_cert(paths.rogue_dir / "rogue-ecdsa.cert.pem")
     rogue_id = f"{svc.issuer_id}-2026-FA15E000"
-    rogue_pdf = generate_pdf(AttestationData(**{**data.__dict__, "doc_id": rogue_id, "grade": FORGED_GRADE}))
-    rogue_proof = build_proof(rogue_pdf, doc_id=rogue_id, issuer_id=svc.issuer_id, registry_url=svc.registry_url,
+    rogue_base = generate_pdf(AttestationData(**{**data.__dict__, "doc_id": rogue_id, "grade": FORGED_GRADE}))
+    rogue_proof = build_proof(rogue_base, doc_id=rogue_id, issuer_id=svc.issuer_id, registry_url=svc.registry_url,
                               private_key=rogue_key, certificate=rogue_cert)
 
     revoked = svc.issue(alg="ecdsa", doc_type="stage", holder="Bob Gagnon",
                         program="Laboratoire de sécurité, Chicoutimi", grade="Très satisfaisant", date="2026-08-30")
     svc.revoke(revoked.doc_id, "Stage interrompu")
 
-    pdfs = {"original": original.pdf, "forged": forged_pdf, "onebit": onebit_pdf, "rogue": rogue_pdf,
-            "revoked": revoked.pdf}
-    proofs = {"original": original.proof, "forged_hash": forged_hash_proof, "rogue": rogue_proof,
-              "revoked": revoked.proof}
+    pdfs = {"original": original.pdf, "forged": forged_pdf, "onebit": onebit_pdf,
+            "forged_hash": embed(forged_base, dump_proof(forged_hash_proof)), "overlay": overlay_pdf,
+            "rogue": embed(rogue_base, dump_proof(rogue_proof)), "revoked": revoked.pdf}
     for name, pdf in pdfs.items():
         (out / f"{name}.pdf").write_bytes(pdf)
         (out / f"{name}.png").write_bytes(_png(_render(pdf)))
-    for name, proof in proofs.items():
-        (out / f"{name}.proof.json").write_bytes(dump_proof(proof))
 
     # Zone modifiée entre l'original et le faux (en % de l'image, pour l'encadrer)
     a, b = _render(original.pdf), _render(forged_pdf)
@@ -196,7 +209,9 @@ def prepare(paths: Paths) -> dict:
         "revoked_doc_id": revoked.doc_id,
         "diff": diff,
         "original_grade": ORIGINAL["grade"], "forged_grade": FORGED_GRADE,
-        "onebit": {"position": bit_pos, "size": len(original.pdf),
+        "sizes": {"signed": len(base), "proof": len(original.pdf) - len(base),
+                  "overlay_extra": len(overlay_pdf) - len(original.pdf)},
+        "onebit": {"position": bit_pos, "size": len(base),
                    "before": chr(original.pdf[bit_pos]), "after": chr(onebit_pdf[bit_pos])},
         "proof_hash": {"original": original.proof["record"]["pdf_sha256"],
                        "forged": forged_hash_proof["record"]["pdf_sha256"]},
@@ -225,9 +240,9 @@ def load_meta(paths: Paths) -> dict | None:
     return json.loads(p.read_text(encoding="utf-8")) if p.exists() else None
 
 
-def files_for(paths: Paths, step: dict) -> tuple[bytes, bytes]:
-    d = guided_dir(paths)
-    return (d / f"{step['pdf']}.pdf").read_bytes(), (d / f"{step['proof']}.proof.json").read_bytes()
+def files_for(paths: Paths, step: dict) -> tuple[bytes, None]:
+    """Un seul fichier par étape : le PDF, avec sa preuve jointe."""
+    return (guided_dir(paths) / f"{step['pdf']}.pdf").read_bytes(), None
 
 
 def make_lookup(paths: Paths, mode: str, registry_lookup):

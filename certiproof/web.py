@@ -39,7 +39,7 @@ _SAFE_NAME = re.compile(r"^[A-Za-z0-9._-]+$")
 # Résultat attendu de chaque fichier du kit de démonstration, quand on le dépose
 # dans l'espace Vérification (le registre réel répond).
 KIT_EXPECTED = {
-    "S1a": "ACCEPTÉ", "S1b": "ACCEPTÉ", "S2a": "REFUSÉ", "S2b": "REFUSÉ", "S2c": "REFUSÉ", "S2d": "REFUSÉ",
+    "S1a": "ACCEPTÉ", "S1b": "ACCEPTÉ", "S1c": "ACCEPTÉ", "S2a": "REFUSÉ", "S2e": "REFUSÉ", "S2b": "REFUSÉ", "S2c": "REFUSÉ", "S2d": "REFUSÉ",
     "S3a": "REFUSÉ", "S3b": "REFUSÉ", "S3c": "REFUSÉ", "S4": "REFUSÉ", "S5": "REFUSÉ", "S7": "REFUSÉ",
 }
 
@@ -194,7 +194,7 @@ def create_app(paths: Paths | None = None, *, status_lookup=None, results_dir: P
             flash(str(e), "error")
             return redirect(url_for("emission"))
         flash(f"Attestation {doc.doc_id} émise et signée ({doc.proof['signature']['alg']}). "
-              "Téléchargez le PDF et la preuve, puis testez-les dans l'onglet Vérification.", "ok")
+              "Téléchargez le PDF signé (la preuve y est jointe), puis testez-le dans l'onglet Vérification.", "ok")
         return redirect(url_for("emission", highlight=doc.doc_id))
 
     def _issued_file(doc_id: str, suffix: str) -> bytes:
@@ -210,12 +210,6 @@ def create_app(paths: Paths | None = None, *, status_lookup=None, results_dir: P
     def download_pdf(doc_id):
         return Response(_issued_file(doc_id, ".pdf"), mimetype="application/pdf",
                         headers={"Content-Disposition": f'attachment; filename="{doc_id}.pdf"'})
-
-    @app.get("/emission/<doc_id>.proof.json")
-    @login_required
-    def download_proof(doc_id):
-        return Response(_issued_file(doc_id, ".proof.json"), mimetype="application/json",
-                        headers={"Content-Disposition": f'attachment; filename="{doc_id}.proof.json"'})
 
     @app.post("/emission/<doc_id>/revoke")
     @login_required

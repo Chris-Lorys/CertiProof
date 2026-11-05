@@ -23,7 +23,7 @@ from typing import Callable
 
 from cryptography import x509
 
-from . import pki, signing
+from . import embedding, pki, signing
 from .proof import ProofFormatError, b64d, parse_proof, record_bytes, sha256_hex, status_bytes
 
 # Verdicts
@@ -39,6 +39,7 @@ PREUVE_ILLISIBLE = "PREUVE_ILLISIBLE"
 EMETTEUR_INCONNU = "EMETTEUR_INCONNU"
 SIGNATURE_INCORRECTE = "SIGNATURE_INCORRECTE"
 FICHIER_DIFFERENT = "FICHIER_DIFFERENT"
+CONTENU_AJOUTE = "CONTENU_AJOUTE_APRES_SIGNATURE"
 DOCUMENT_REVOQUE = "DOCUMENT_REVOQUE"
 DOCUMENT_INCONNU = "DOCUMENT_INCONNU_DU_REGISTRE"
 REGISTRE_INACCESSIBLE = "REGISTRE_INACCESSIBLE"
@@ -133,10 +134,16 @@ def verify(
 
     if not pdf:
         return VerificationResult(REFUSE, PDF_ABSENT, "Aucun PDF fourni.", checks)
+    # La preuve est normalement jointe au PDF ; un fichier de preuve séparé reste accepté
+    embedded = False
     if not proof_raw:
-        checks.append(Check("Preuve", False, "Aucun fichier de preuve fourni"))
+        proof_raw = embedding.extract(pdf)
+        embedded = proof_raw is not None
+    if not proof_raw:
+        checks.append(Check("Preuve", False, "Aucune preuve CertiProof jointe à ce PDF"))
         return VerificationResult(REFUSE, PREUVE_ABSENTE,
-                                  "Preuve absente : impossible de vérifier l'origine du document.", checks)
+                                  "Preuve absente : ce PDF ne contient pas de preuve CertiProof, "
+                                  "impossible de vérifier son origine.", checks)
 
     # 0. Lecture de la preuve
     try:
@@ -144,10 +151,11 @@ def verify(
     except ProofFormatError as e:
         checks.append(Check("Preuve", False, str(e)))
         return VerificationResult(REFUSE, PREUVE_ILLISIBLE, f"Preuve illisible : {e}.", checks)
-    checks.append(Check("Preuve", True, "Fichier de preuve lisible"))
+    checks.append(Check("Preuve", True, f"Preuve lisible, jointe au PDF ({embedding.ATTACHMENT_NAME})"
+                        if embedded else "Fichier de preuve séparé lisible"))
     info = {"doc_id": p.record["doc_id"], "issuer_id_record": p.record["issuer_id"],
             "issued_at": p.record["issued_at"], "algorithm": p.algorithm,
-            "signature_bytes": len(p.signature)}
+            "signature_bytes": len(p.signature), "embedded": embedded}
 
     # 1a. Qui a signé ? Confiance dans le certificat
     cc = pki.validate_issuer_cert(p.certificate, trust_store, at=now)
@@ -165,14 +173,38 @@ def verify(
                         "La signature ne correspond pas à l'enregistrement ou à la clé du certificat"))
 
     # 2. Le document a-t-il changé ?
+    #    a) le SHA-256 des `pdf_size` premiers octets doit être l'empreinte signée ;
+    #    b) après ces octets, seule la preuve jointe est admise : le fichier doit être exactement
+    #       « octets signés + mise à jour qui joint cette preuve » (ou les octets signés seuls).
+    size = p.record["pdf_size"]
+    signed_part = pdf[:size]
     t0 = time.perf_counter()
-    digest = sha256_hex(pdf)
+    digest = sha256_hex(signed_part)
     timings["sha256"] = (time.perf_counter() - t0) * 1000
-    hash_ok = secrets.compare_digest(digest, p.record["pdf_sha256"])
-    info.update(pdf_sha256=digest, expected_sha256=p.record["pdf_sha256"])
-    checks.append(Check("Intégrité du PDF", hash_ok,
-                        "Empreinte SHA-256 identique" if hash_ok else
-                        "Empreinte SHA-256 différente : le PDF a été modifié ou la preuve concerne un autre PDF"))
+    hash_ok = len(pdf) >= size and secrets.compare_digest(digest, p.record["pdf_sha256"])
+    appended_ok = True
+    if hash_ok and len(pdf) != size:
+        try:
+            appended_ok = embedding.embed(signed_part, proof_raw) == pdf
+        except embedding.EmbeddingError:
+            appended_ok = False
+    expected_total = size
+    if hash_ok:
+        try:
+            expected_total = len(embedding.embed(signed_part, proof_raw))
+        except embedding.EmbeddingError:
+            pass
+    info.update(pdf_sha256=digest, expected_sha256=p.record["pdf_sha256"], signed_bytes=size,
+                total_bytes=len(pdf), proof_bytes=expected_total - size,
+                extra_bytes=max(len(pdf) - expected_total, 0) if hash_ok else 0)
+    if not hash_ok:
+        detail = "Empreinte SHA-256 différente : le PDF a été modifié ou la preuve concerne un autre PDF"
+    elif not appended_ok:
+        detail = (f"Les {size} octets signés sont intacts, mais du contenu a été ajouté au PDF après la "
+                  "signature (mise à jour incrémentale)")
+    else:
+        detail = f"Empreinte SHA-256 identique sur les {size} octets signés"
+    checks.append(Check("Intégrité du PDF", hash_ok and appended_ok, detail))
 
     # 3. Est-il encore valide ? Interrogé seulement si l'enregistrement est authentique,
     #    pour ne jamais contacter une adresse fournie par un tiers non reconnu.
@@ -211,6 +243,10 @@ def verify(
     elif not hash_ok:
         result.verdict, result.code = REFUSE, FICHIER_DIFFERENT
         result.message = "Fichier différent : ce PDF n'est pas celui qui a été signé."
+    elif not appended_ok:
+        result.verdict, result.code = REFUSE, CONTENU_AJOUTE
+        result.message = ("Contenu ajouté après la signature : les octets signés sont intacts, mais le PDF "
+                          "a été complété ensuite et peut afficher autre chose.")
     elif status == "revoked":
         result.verdict, result.code = REFUSE, DOCUMENT_REVOQUE
         result.message = "Document annulé : signature correcte, mais l'établissement a révoqué cette attestation."

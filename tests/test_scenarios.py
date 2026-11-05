@@ -10,7 +10,7 @@ def results(paths, tmp_path_factory):
     return {r["id"]: r for r in run_scenarios(paths, tmp_path_factory.mktemp("results"))}
 
 
-@pytest.mark.parametrize("sid", ["S1a", "S1b", "S2a", "S2b", "S2c", "S2d", "S3a", "S3b", "S3c",
+@pytest.mark.parametrize("sid", ["S1a", "S1b", "S1c", "S2a", "S2b", "S2c", "S2d", "S2e", "S3a", "S3b", "S3c",
                                  "S4", "S5", "S6a", "S6b", "S7", "S8a", "S8b"])
 def test_scenario(results, sid):
     r = results[sid]

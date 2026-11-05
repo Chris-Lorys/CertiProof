@@ -1,14 +1,15 @@
-"""Format du fichier de preuve CertiProof.
+"""Format de la preuve CertiProof.
 
-Une preuve est un fichier JSON distinct du PDF :
+La preuve est un document JSON, joint au PDF signé (voir embedding.py) :
 
     {
-      "format": "certiproof-proof/1",
+      "format": "certiproof-proof/2",
       "record": {                         <- enregistrement signé
         "doc_id": "UFS-2026-3F9A1C7B",
         "issuer_id": "UFS",
         "hash_alg": "SHA-256",
         "pdf_sha256": "<64 caractères hexadécimaux>",
+        "pdf_size": 2093,                 <- nombre d'octets couverts par l'empreinte
         "issued_at": "2026-11-05T04:30:00Z",
         "registry_url": "http://127.0.0.1:5001/api/registry"
       },
@@ -33,11 +34,12 @@ from dataclasses import dataclass
 
 from . import pki, signing
 
-FORMAT = "certiproof-proof/1"
+FORMAT = "certiproof-proof/2"
 RECORD_DOMAIN = b"CertiProof/record/v1\x00"
 STATUS_DOMAIN = b"CertiProof/status/v1\x00"
 
-RECORD_FIELDS = ("doc_id", "issuer_id", "hash_alg", "pdf_sha256", "issued_at", "registry_url")
+RECORD_FIELDS = ("doc_id", "issuer_id", "hash_alg", "pdf_sha256", "pdf_size", "issued_at", "registry_url")
+_STR_FIELDS = tuple(f for f in RECORD_FIELDS if f != "pdf_size")
 _HEX64 = re.compile(r"^[0-9a-f]{64}$")
 
 
@@ -89,6 +91,7 @@ def build_proof(
         "issuer_id": issuer_id,
         "hash_alg": "SHA-256",
         "pdf_sha256": sha256_hex(pdf),
+        "pdf_size": len(pdf),
         "issued_at": issued_at or utc_iso(),
         "registry_url": registry_url,
     }
@@ -125,8 +128,11 @@ def parse_proof(raw: bytes) -> ParsedProof:
     record = data.get("record")
     if not isinstance(record, dict) or set(record) != set(RECORD_FIELDS):
         raise ProofFormatError("Enregistrement signé incomplet ou avec des champs inattendus")
-    if not all(isinstance(record[k], str) for k in RECORD_FIELDS):
+    if not all(isinstance(record[k], str) for k in _STR_FIELDS):
         raise ProofFormatError("Champs de l'enregistrement mal typés")
+    size = record["pdf_size"]
+    if not isinstance(size, int) or isinstance(size, bool) or size <= 0:
+        raise ProofFormatError("Taille du PDF signé absente ou invalide")
     if record["hash_alg"] != "SHA-256" or not _HEX64.match(record["pdf_sha256"]):
         raise ProofFormatError("Empreinte absente ou mal formée")
 

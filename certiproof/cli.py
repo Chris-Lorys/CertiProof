@@ -42,7 +42,6 @@ def cmd_issue(args, paths: Paths) -> None:
                                      grade=args.grade, date=args.date, alg=args.alg)
     print(f"{doc.doc_id} émis ({doc.proof['signature']['alg']})")
     print(f"  {paths.issued_dir / (doc.doc_id + '.pdf')}")
-    print(f"  {paths.issued_dir / (doc.doc_id + '.proof.json')}")
 
 
 def cmd_revoke(args, paths: Paths) -> None:
@@ -139,7 +138,7 @@ def main(argv=None) -> None:
 
     s = sub.add_parser("verify", help="Vérifier un PDF et sa preuve")
     s.add_argument("pdf")
-    s.add_argument("proof", nargs="?")
+    s.add_argument("proof", nargs="?", help="Preuve séparée (facultatif : elle est normalement jointe au PDF)")
     s.add_argument("--offline", action="store_true", help="Ne pas interroger le registre")
     s.add_argument("--json", action="store_true")
     s.set_defaults(func=cmd_verify)

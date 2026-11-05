@@ -20,6 +20,7 @@ from . import pki, signing, verifier
 from .config import Paths
 from .issuer import IssuerService
 from .pdfgen import AttestationData, generate_pdf
+from .embedding import embed, overlay
 from .proof import b64e, build_proof, dump_proof, sha256_hex, status_bytes, utc_iso
 from .verifier import RegistryUnavailable
 
@@ -61,13 +62,9 @@ def down_lookup(*_args):
     raise RegistryUnavailable("Connexion refusée (registre arrêté)")
 
 
-def _tamper_pdf(pdf: bytes, old: str, new: str, data: AttestationData) -> bytes:
-    """Régénère le PDF avec un champ modifié : même apparence, contenu falsifié."""
-    fields = data.__dict__.copy()
-    for k, v in fields.items():
-        if v == old:
-            fields[k] = new
-    return generate_pdf(AttestationData(**fields))
+def _tamper_base(data: AttestationData, **changes) -> bytes:
+    """Régénère le PDF d'origine avec un champ modifié : même apparence, contenu falsifié."""
+    return generate_pdf(AttestationData(**{**data.__dict__, **changes}))
 
 
 def _flip_signature(proof: dict) -> bytes:
@@ -119,38 +116,45 @@ def build_scenarios(paths: Paths, out_dir: Path | None = None) -> list[Scenario]
     def replay_lookup(registry_url, doc_id, nonce, alg):
         return svc.status_response(doc_id, "nonce-capture-plus-tot", alg)
 
-    flipped_pdf = bytearray(ec_doc.pdf)
-    flipped_pdf[len(flipped_pdf) // 2] ^= 0x20
+    # Toutes les falsifications produisent UN seul fichier PDF, comme le vrai document
+    base = ec_doc.base_pdf
+    proof = ec_doc.proof_bytes
+    fake_name = _tamper_base(ec_data, holder="Alice Tremblai")
+    fake_grade = _tamper_base(ec_data, grade="Excellent (GPA 4,3)")
+    fake_date = _tamper_base(ec_data, date="2025-06-15")
+    flipped = bytearray(ec_doc.pdf)
+    flipped[len(base) // 2] ^= 0x20
+    rogue_signed = embed(rogue_pdf, rogue_proof)
 
     A, R, N = verifier.ACCEPTE, verifier.REFUSE, verifier.NON_CONFIRME
     sc = [
-        Scenario("S1a", "PDF original + preuve correcte (RSA-PSS)", A, verifier.OK, rsa_doc.pdf, rsa_doc.proof_bytes, ok),
-        Scenario("S1b", "PDF original + preuve correcte (ECDSA)", A, verifier.OK, ec_doc.pdf, ec_doc.proof_bytes, ok),
-        Scenario("S2a", "Nom modifié dans le PDF", R, verifier.FICHIER_DIFFERENT,
-                 _tamper_pdf(ec_doc.pdf, "Alice Tremblay", "Alice Tremblai", ec_data), ec_doc.proof_bytes, ok),
-        Scenario("S2b", "Note modifiée dans le PDF", R, verifier.FICHIER_DIFFERENT,
-                 _tamper_pdf(ec_doc.pdf, "Excellent (GPA 4,1)", "Excellent (GPA 4,3)", ec_data), ec_doc.proof_bytes, ok),
-        Scenario("S2c", "Date modifiée dans le PDF", R, verifier.FICHIER_DIFFERENT,
-                 _tamper_pdf(ec_doc.pdf, "2026-06-15", "2025-06-15", ec_data), ec_doc.proof_bytes, ok),
-        Scenario("S2d", "Un seul bit du PDF modifié", R, verifier.FICHIER_DIFFERENT,
-                 bytes(flipped_pdf), ec_doc.proof_bytes, ok),
+        Scenario("S1a", "PDF signé original (RSA-PSS)", A, verifier.OK, rsa_doc.pdf, None, ok),
+        Scenario("S1b", "PDF signé original (ECDSA)", A, verifier.OK, ec_doc.pdf, None, ok),
+        Scenario("S1c", "PDF d'origine + preuve fournie à part (compatibilité)", A, verifier.OK, base, proof, ok),
+        Scenario("S2a", "Nom modifié dans le PDF", R, verifier.FICHIER_DIFFERENT, embed(fake_name, proof), None, ok),
+        Scenario("S2b", "Note modifiée dans le PDF", R, verifier.FICHIER_DIFFERENT, embed(fake_grade, proof), None, ok),
+        Scenario("S2c", "Date modifiée dans le PDF", R, verifier.FICHIER_DIFFERENT, embed(fake_date, proof), None, ok),
+        Scenario("S2d", "Un seul bit modifié dans la partie signée", R, verifier.FICHIER_DIFFERENT,
+                 bytes(flipped), None, ok),
+        Scenario("S2e", "Note remplacée par une mise à jour ajoutée après la signature", R, verifier.CONTENU_AJOUTE,
+                 overlay(ec_doc.pdf, base, fake_grade), None, ok),
         Scenario("S3a", "Signature altérée (1 bit)", R, verifier.SIGNATURE_INCORRECTE,
-                 ec_doc.pdf, _flip_signature(ec_doc.proof), ok),
-        Scenario("S3b", "Preuve d'un autre PDF", R, verifier.FICHIER_DIFFERENT,
-                 ec_doc.pdf, other.proof_bytes, ok),
-        Scenario("S3c", "Empreinte remplacée dans la preuve par celle du faux PDF", R, verifier.SIGNATURE_INCORRECTE,
-                 rogue_pdf, _edit_record(ec_doc.proof, pdf_sha256=sha256_hex(rogue_pdf)), ok),
+                 embed(base, _flip_signature(ec_doc.proof)), None, ok),
+        Scenario("S3b", "Preuve d'un autre document jointe au PDF", R, verifier.FICHIER_DIFFERENT,
+                 embed(base, other.proof_bytes), None, ok),
+        Scenario("S3c", "Empreinte de la preuve remplacée par celle du faux PDF", R, verifier.SIGNATURE_INCORRECTE,
+                 embed(fake_grade, _edit_record(ec_doc.proof, pdf_sha256=sha256_hex(fake_grade),
+                                                pdf_size=len(fake_grade))), None, ok),
         Scenario("S4", "Document signé par un émetteur inconnu (fausse AC)", R, verifier.EMETTEUR_INCONNU,
-                 rogue_pdf, rogue_proof, ok),
-        Scenario("S5", "Attestation annulée", R, verifier.DOCUMENT_REVOQUE, revoked.pdf, revoked.proof_bytes, ok),
-        Scenario("S6a", "Registre inaccessible", N, verifier.REGISTRE_INACCESSIBLE,
-                 ec_doc.pdf, ec_doc.proof_bytes, down_lookup),
-        Scenario("S6b", "Retour du registre", A, verifier.OK, ec_doc.pdf, ec_doc.proof_bytes, ok),
-        Scenario("S7", "Preuve absente", R, verifier.PREUVE_ABSENTE, ec_doc.pdf, None, ok),
+                 rogue_signed, None, ok),
+        Scenario("S5", "Attestation annulée", R, verifier.DOCUMENT_REVOQUE, revoked.pdf, None, ok),
+        Scenario("S6a", "Registre inaccessible", N, verifier.REGISTRE_INACCESSIBLE, ec_doc.pdf, None, down_lookup),
+        Scenario("S6b", "Retour du registre", A, verifier.OK, ec_doc.pdf, None, ok),
+        Scenario("S7", "PDF sans preuve CertiProof", R, verifier.PREUVE_ABSENTE, base, None, ok),
         Scenario("S8a", "Réponse du registre forgée (document révoqué déclaré valide)", N,
-                 verifier.REPONSE_REGISTRE_INVALIDE, revoked.pdf, revoked.proof_bytes, forged_lookup),
+                 verifier.REPONSE_REGISTRE_INVALIDE, revoked.pdf, None, forged_lookup),
         Scenario("S8b", "Réponse du registre rejouée (mauvais nonce)", N,
-                 verifier.REPONSE_REGISTRE_INVALIDE, revoked.pdf, revoked.proof_bytes, replay_lookup),
+                 verifier.REPONSE_REGISTRE_INVALIDE, revoked.pdf, None, replay_lookup),
     ]
 
     if out_dir:

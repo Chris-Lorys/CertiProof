@@ -3,8 +3,9 @@
 Vérification de diplômes et d'attestations par signatures numériques.
 Projet du cours 8INF874 Cryptographie (UQAC, automne 2026). Équipe : Daren HOUEDANOU et Fredy Loïc NGUE TCHANA.
 
-L'établissement signe une attestation une seule fois. Le destinataire (recruteur, université) dépose ensuite le PDF et
-son fichier de preuve dans le vérificateur, qui répond à trois questions distinctes :
+L'établissement signe une attestation une seule fois et remet **un seul fichier PDF**, dans lequel la preuve
+(empreinte, signature, certificat) est jointe. Le destinataire (recruteur, université) dépose ce PDF dans le
+vérificateur, qui répond à trois questions distinctes :
 
 | Question | Contrôle | Notion du cours |
 |---|---|---|
@@ -49,15 +50,15 @@ L'application regroupe tout dans des onglets :
 | Onglet | Accès | Contenu |
 |---|---|---|
 | Accueil | tous | État de l'installation, certificats, nombre d'attestations |
-| Émission | compte de l'établissement | Émettre une attestation (RSA-PSS ou ECDSA), télécharger le PDF et la preuve, révoquer |
-| Vérification | tous | Déposer un PDF et sa preuve : verdict, détail des 5 contrôles, empreintes, temps |
+| Émission | compte de l'établissement | Émettre une attestation (RSA-PSS ou ECDSA), télécharger le PDF signé, révoquer |
+| Vérification | tous | Déposer le PDF signé : verdict, détail des 5 contrôles, empreintes, structure du fichier, temps |
 | Démonstration | tous (kit et panne : établissement) | Lancer les 16 scénarios, générer et télécharger le kit de fichiers falsifiés, simuler une panne du registre |
 | Mesures | tous | Comparer RSA-PSS et ECDSA (temps, tailles) et le coût de SHA-256 |
 
 ### Démonstration guidée (à projeter)
 
 **Démonstration → Lancer la démo guidée** (ou http://127.0.0.1:5001/demo/guidee). Au premier passage, connectez-vous
-avec le compte de l'établissement et cliquez sur « Préparer la démonstration ». Dix écrans, un par idée :
+avec le compte de l'établissement et cliquez sur « Préparer la démonstration ». Onze écrans, un par idée :
 
 | # | Écran | Ce que voit l'auditoire | Verdict |
 |---|---|---|---|
@@ -65,12 +66,13 @@ avec le compte de l'établissement et cliquez sur « Préparer la démonstration
 | 1 | Le diplôme authentique | Les 5 contrôles s'allument en vert | ACCEPTÉ |
 | 2 | Alice gonfle sa mention | Original et faux côte à côte, différence entourée, empreintes comparées caractère par caractère | REFUSÉ |
 | 3 | Un seul bit suffit | Deux PDF identiques, 1 bit changé, grille des 256 bits de l'empreinte dont ~50 % changent | REFUSÉ |
-| 4 | Alice modifie aussi la preuve | L'empreinte concorde, mais la signature casse | REFUSÉ |
-| 5 | Un faussaire crée sa propre université | Certificat signé par « AC Pirate » face au magasin de confiance | REFUSÉ |
-| 6 | Document annulé | Tout est valide sauf le statut ; réponse signée du registre affichée | REFUSÉ |
-| 7 | Registre en panne | Contrôles cryptographiques valides, statut inconnu | NON CONFIRMÉ |
-| 8 | Réponse du registre falsifiée | « VALIDE » annoncé, mais signature invalide | NON CONFIRMÉ |
-| 9 | Bilan | Récapitulatif et limites | – |
+| 4 | Alice modifie aussi la preuve jointe | L'empreinte concorde, mais la signature casse | REFUSÉ |
+| 5 | Alice ajoute une couche par-dessus | Le lecteur PDF affiche la fausse mention alors que les octets signés sont intacts ; structure du fichier avec l'ajout en rouge | REFUSÉ |
+| 6 | Un faussaire crée sa propre université | Certificat signé par « AC Pirate » face au magasin de confiance | REFUSÉ |
+| 7 | Document annulé | Tout est valide sauf le statut ; réponse signée du registre affichée | REFUSÉ |
+| 8 | Registre en panne | Contrôles cryptographiques valides, statut inconnu | NON CONFIRMÉ |
+| 9 | Réponse du registre falsifiée | « VALIDE » annoncé, mais signature invalide | NON CONFIRMÉ |
+| 10 | Bilan | Récapitulatif et limites | – |
 
 Navigation : flèches ← → du clavier, **Entrée** pour lancer la vérification. Chaque vérification est réelle : elle
 rejoue le vérificateur sur les fichiers, contrôle après contrôle.
@@ -89,7 +91,7 @@ Les mêmes fonctions restent disponibles sans interface :
 python -m certiproof init --password "..."        # installation sans l'assistant (--openssl : PKI via la CLI OpenSSL)
 python -m certiproof issue --type diplome --holder "Alice Tremblay" \
     --program "Baccalauréat en informatique" --grade "Excellent" --date 2026-06-15 --alg rsa
-python -m certiproof verify data/issued/UFS-2026-XXXX.pdf data/issued/UFS-2026-XXXX.proof.json
+python -m certiproof verify data/issued/UFS-2026-XXXX.pdf
 python -m certiproof revoke UFS-2026-XXXX --reason "Erreur de saisie"
 python -m certiproof serve --port 8080 --no-browser
 ```
@@ -111,25 +113,46 @@ machine** pour le rapport, puisque les temps en dépendent.
 
 | # | Situation | Verdict |
 |---|---|---|
-| S1 | PDF original + preuve correcte (RSA-PSS et ECDSA) | ACCEPTÉ |
-| S2 | Nom, note ou date modifiés, ou un seul bit du PDF | REFUSÉ, fichier différent |
-| S3 | Signature altérée, preuve d'un autre PDF, empreinte remplacée dans la preuve | REFUSÉ, signature incorrecte ou fichier différent |
+| S1 | PDF signé original (RSA-PSS et ECDSA), ou PDF d'origine + preuve séparée | ACCEPTÉ |
+| S2 | Nom, note ou date modifiés, ou un seul bit de la partie signée | REFUSÉ, fichier différent |
+| S2e | Contenu remplacé par une mise à jour ajoutée après la signature | REFUSÉ, contenu ajouté après signature |
+| S3 | Signature altérée, preuve d'un autre document jointe, empreinte remplacée dans la preuve | REFUSÉ, signature incorrecte ou fichier différent |
 | S4 | Faux établissement (même nom et identifiant, AC non reconnue) | REFUSÉ, émetteur inconnu |
 | S5 | Attestation annulée | REFUSÉ, document révoqué (signature correcte) |
 | S6 | Registre inaccessible, puis de retour | NON CONFIRMÉ, puis ACCEPTÉ |
-| S7 | Preuve absente | REFUSÉ, preuve absente |
+| S7 | PDF sans preuve CertiProof | REFUSÉ, preuve absente |
 | S8 | Réponse du registre forgée ou rejouée | NON CONFIRMÉ, réponse non authentique |
+
+## Un seul fichier : la preuve jointe au PDF
+
+```
+[ PDF d'origine : pdf_size octets couverts par l'empreinte signée ][ mise à jour incrémentale : pièce jointe certiproof-proof.json ]
+```
+
+1. L'établissement génère le PDF, calcule le SHA-256 de ses octets et signe l'enregistrement (qui contient
+   l'empreinte et `pdf_size`).
+2. Il ajoute la preuve à la fin du fichier par une **mise à jour incrémentale** PDF : une pièce jointe
+   `certiproof-proof.json`, visible dans le panneau « Pièces jointes » des lecteurs PDF. Les octets d'origine ne
+   changent pas, donc l'empreinte reste valable.
+3. Le vérificateur extrait la pièce jointe, recalcule le SHA-256 des `pdf_size` premiers octets, puis reconstruit
+   la mise à jour attendue et exige que le fichier reçu soit **exactement** « octets signés + cette mise à jour ».
+
+Le point 3 est essentiel. Le format PDF permet d'ajouter des mises à jour qui remplacent le contenu affiché sans
+toucher aux octets d'origine (scénario S2e). Sans ce contrôle, un faux afficherait une autre mention avec une
+empreinte valide. Les signatures PDF officielles (PAdES, `ByteRange`) reposent sur le même principe. Un fichier de
+preuve séparé reste accepté pour compatibilité (S1c).
 
 ## Format de la preuve
 
 ```json
 {
-  "format": "certiproof-proof/1",
+  "format": "certiproof-proof/2",
   "record": {
     "doc_id": "UFS-2026-3F9A1C7B",
     "issuer_id": "UFS",
     "hash_alg": "SHA-256",
     "pdf_sha256": "4a5587…7270",
+    "pdf_size": 2175,
     "issued_at": "2026-11-05T04:30:00Z",
     "registry_url": "http://127.0.0.1:5001/api/registry"
   },
@@ -153,6 +176,7 @@ certiproof/
   signing.py    RSA-PSS / ECDSA (bibliothèque cryptography, adossée à OpenSSL)
   pki.py        AC, certificats d'établissement, magasin de confiance, validation des certificats
   proof.py      format de la preuve, JSON canonique, SHA-256
+  embedding.py  preuve jointe au PDF (mise à jour incrémentale), extraction
   pdfgen.py     génération des attestations PDF (reportlab, sortie reproductible)
   registry.py   registre SQLite : statuts et comptes (mots de passe hachés)
   issuer.py     service d'émission, révocation, réponses de statut signées

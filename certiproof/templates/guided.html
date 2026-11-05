@@ -110,7 +110,7 @@
     <div class="m">L'université signe le document avec sa clé privée. Un certificat, émis par une autorité reconnue, prouve que cette clé est bien la sienne.</div>
     <div class="tagx">Signature RSA-PSS / ECDSA + certificat X.509</div></div>
   <div class="panel"><div class="q">A-t-il été modifié ?</div>
-    <div class="m">L'empreinte SHA-256 du PDF est incluse dans ce qui est signé. Le moindre octet modifié change l'empreinte.</div>
+    <div class="m">L'empreinte SHA-256 du PDF est incluse dans ce qui est signé. Le moindre octet modifié change l'empreinte, et rien ne peut être ajouté après la signature.</div>
     <div class="tagx">Hachage SHA-256</div></div>
   <div class="panel"><div class="q">Est-il encore valide ?</div>
     <div class="m">Le registre de l'université indique si le document a été annulé, par une réponse elle-même signée.</div>
@@ -118,7 +118,7 @@
 </div>
 <div class="flow">
   <span class="n">Université</span><span class="a">→</span>
-  <span class="n">PDF + fichier de preuve</span><span class="a">→</span>
+  <span class="n">Un seul fichier : PDF signé (preuve jointe)</span><span class="a">→</span>
   <span class="n">Titulaire</span><span class="a">→</span>
   <span class="n">Recruteur (vérificateur)</span>
 </div>
@@ -134,10 +134,11 @@
     <tr><td>2</td><td>Mention modifiée dans le PDF</td><td>Empreinte SHA-256</td><td><span class="pill revoked">REFUSÉ</span></td></tr>
     <tr><td>3</td><td>Un seul bit modifié</td><td>Empreinte SHA-256 (effet avalanche)</td><td><span class="pill revoked">REFUSÉ</span></td></tr>
     <tr><td>4</td><td>PDF et empreinte de la preuve modifiés</td><td>Signature</td><td><span class="pill revoked">REFUSÉ</span></td></tr>
-    <tr><td>5</td><td>Fausse université avec sa propre clé</td><td>Certificat (PKI)</td><td><span class="pill revoked">REFUSÉ</span></td></tr>
-    <tr><td>6</td><td>Document annulé</td><td>Registre</td><td><span class="pill revoked">REFUSÉ</span></td></tr>
-    <tr><td>7</td><td>Registre en panne</td><td>–</td><td><span class="pill" style="background:var(--warn-bg);color:var(--warn)">NON CONFIRMÉ</span></td></tr>
-    <tr><td>8</td><td>Fausse réponse du registre</td><td>Signature + nonce de la réponse</td><td><span class="pill" style="background:var(--warn-bg);color:var(--warn)">NON CONFIRMÉ</span></td></tr>
+    <tr><td>5</td><td>Couche ajoutée après la signature</td><td>Contrôle de la structure du fichier</td><td><span class="pill revoked">REFUSÉ</span></td></tr>
+    <tr><td>6</td><td>Fausse université avec sa propre clé</td><td>Certificat (PKI)</td><td><span class="pill revoked">REFUSÉ</span></td></tr>
+    <tr><td>7</td><td>Document annulé</td><td>Registre</td><td><span class="pill revoked">REFUSÉ</span></td></tr>
+    <tr><td>8</td><td>Registre en panne</td><td>–</td><td><span class="pill" style="background:var(--warn-bg);color:var(--warn)">NON CONFIRMÉ</span></td></tr>
+    <tr><td>9</td><td>Fausse réponse du registre</td><td>Signature + nonce de la réponse</td><td><span class="pill" style="background:var(--warn-bg);color:var(--warn)">NON CONFIRMÉ</span></td></tr>
   </table>
 </div>
 <div class="panel"><h3>Limites</h3>
@@ -203,7 +204,7 @@
 
     {% elif step.visual == "proof_edit" %}
       <div class="panel"><h3>Le PDF falsifié</h3><img class="doc-img" src="{{ M }}forged.png" alt=""></div>
-      <div class="panel"><h3>Le fichier de preuve modifié par Alice</h3>
+      <div class="panel"><h3>La preuve jointe, modifiée par Alice</h3>
 <div class="code">"record": {
   "doc_id": "{{ meta.original_doc_id }}",
   "issuer_id": "…",
@@ -230,6 +231,19 @@
       </div>
       <div class="panel"><h3>Le faux diplôme</h3><img class="doc-img" src="{{ M }}rogue.png" alt=""></div>
 
+    {% elif step.visual == "overlay" %}
+      <div class="panel">
+        <div class="pair">
+          <figure><figcaption>PDF signé par l'université</figcaption><img class="doc-img" src="{{ M }}original.png" alt=""></figure>
+          <figure><figcaption class="bad">Même fichier + couche d'Alice</figcaption>
+            <div class="imgwrap"><img class="doc-img" src="{{ M }}overlay.png" alt="">
+              {% if meta.diff %}<div class="hl show" style="left:{{ meta.diff.left }}%;top:{{ meta.diff.top }}%;width:{{ meta.diff.width }}%;height:{{ meta.diff.height }}%"></div>{% endif %}</div></figure>
+        </div>
+        <p style="font-size:16px;margin:14px 0 0;text-align:center">Les {{ meta.sizes.signed }} octets signés sont identiques dans les deux fichiers.
+          Alice a seulement ajouté {{ meta.sizes.overlay_extra }} octets à la fin.</p>
+      </div>
+      <div class="panel" id="hashpanel" style="display:none"><h3>Empreintes SHA-256 des octets signés</h3><div id="hashes"></div></div>
+
     {% elif step.visual == "registry" %}
       <div class="panel"><h3>Le document présenté</h3><img class="doc-img" src="{{ M }}revoked.png" alt=""></div>
       <div class="panel resp" id="resppanel" style="display:none"><h3>Réponse du registre</h3><div id="resp"></div></div>
@@ -255,6 +269,7 @@
     </div>
     <div class="big-verdict" id="verdict"></div>
     <div class="panel explain" id="explain"><h3>Pourquoi ?</h3>{{ step.explain }}</div>
+    <div class="panel" id="structpanel" style="display:none"><h3>Structure du fichier reçu</h3><div id="struct"></div></div>
   </div>
 </div>
 {% endif %}
@@ -310,6 +325,21 @@
       document.getElementById("bitstat").textContent = `${cnt} bits sur 256 ont changé (${Math.round(cnt / 2.56)} %)`;
     }
   }
+  function showStruct(info, st) {
+    const box = document.getElementById("struct");
+    if (!box || !info.signed_bytes) return;
+    const total = info.total_bytes, extra = info.extra_bytes || 0, proof = info.embedded ? info.proof_bytes : 0;
+    const signed = Math.min(info.signed_bytes, total);
+    const seg = (n, color, label) => n > 0 ? `<div title="${label}" style="flex:${n};background:${color};color:#fff;font-size:12px;font-weight:700;padding:10px 6px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis">${label}</div>` : "";
+    const sigColor = info.pdf_sha256 === info.expected_sha256 ? "var(--ok)" : "var(--ko)";
+    box.innerHTML = `<div style="display:flex;border-radius:8px;overflow:hidden;gap:2px">` +
+      seg(signed, sigColor, `Octets signés (${signed})`) +
+      seg(proof, "#4b6b95", `Preuve jointe (${proof})`) +
+      seg(extra, "var(--ko)", `Ajout après signature (${extra})`) + `</div>` +
+      `<p style="margin:10px 0 0;font-size:14px;color:var(--muted)">Le SHA-256 est calculé sur les ${info.signed_bytes} premiers octets. ` +
+      `Après eux, seule la preuve jointe est admise, à l'octet près.</p>`;
+    document.getElementById("structpanel").style.display = "block";
+  }
   function showRegistry(info) {
     const box = document.getElementById("resp");
     if (!box) return;
@@ -345,7 +375,7 @@
       row.className = "chk on " + st;
       row.querySelector(".ic").textContent = st === "ok" ? "✓" : st === "ko" ? "✗" : "?";
       row.querySelector("small").textContent = c ? c.detail : "non effectué";
-      if (row.dataset.name === "Intégrité du PDF" && res.info && res.info.pdf_sha256) showHashes(res.info);
+      if (row.dataset.name === "Intégrité du PDF" && res.info && res.info.pdf_sha256) { showHashes(res.info); showStruct(res.info, st); }
       if (row.dataset.name === "Émetteur reconnu") {
         const cp = document.getElementById("cert-presented");
         if (cp) cp.classList.add(st === "ok" ? "good" : "bad");

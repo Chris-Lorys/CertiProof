@@ -32,8 +32,7 @@
       <td>{% if d.status == "valid" %}<span class="pill valid">Valide</span>
           {% else %}<span class="pill revoked">Révoquée</span><div class="muted">{{ d.revocation_reason }}</div>{% endif %}</td>
       <td><div class="actions">
-        <a href="{{ url_for('download_pdf', doc_id=d.doc_id) }}">PDF</a>
-        <a href="{{ url_for('download_proof', doc_id=d.doc_id) }}">Preuve</a>
+        <a href="{{ url_for('download_pdf', doc_id=d.doc_id) }}">PDF signé</a>
         {% if d.status == "valid" %}
         <form method="post" action="{{ url_for('revoke', doc_id=d.doc_id) }}" class="actions">
           <input type="hidden" name="csrf" value="{{ csrf_token() }}">

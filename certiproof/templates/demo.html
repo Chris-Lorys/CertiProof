@@ -42,7 +42,7 @@
 <div class="card" id="kit">
   <h2>2. Kit de démonstration à tester à la main</h2>
   <p class="muted">Émet 4 attestations avec votre établissement (dont une révoquée), puis fabrique des versions
-    falsifiées. Déposez chaque paire dans l'onglet <a href="{{ url_for('verification') }}">Vérification</a>
+    falsifiées. Déposez chaque PDF dans l'onglet <a href="{{ url_for('verification') }}">Vérification</a>
     pour voir pourquoi elle est acceptée ou refusée. Réservé au compte de l'établissement.</p>
   <form method="post" action="{{ url_for('demo_kit') }}" class="inline">
     <input type="hidden" name="csrf" value="{{ csrf_token() }}">
@@ -58,7 +58,7 @@
       <td>{% if k.expected == "ACCEPTÉ" %}<span class="pill valid">ACCEPTÉ</span>{% else %}<span class="pill revoked">REFUSÉ</span>{% endif %}</td>
       <td><div class="actions">
         {% if k.pdf %}<a href="{{ url_for('demo_file', name=k.pdf) }}">PDF</a>{% endif %}
-        {% if k.proof %}<a href="{{ url_for('demo_file', name=k.proof) }}">Preuve</a>{% else %}<span class="muted">pas de preuve</span>{% endif %}
+        {% if k.proof %}<a href="{{ url_for('demo_file', name=k.proof) }}">Preuve séparée</a>{% endif %}
       </div></td>
     </tr>
     {% endfor %}

@@ -9,6 +9,7 @@ from dataclasses import dataclass
 
 from . import pki, signing
 from .config import DEFAULT_PORT, Paths
+from .embedding import embed
 from .pdfgen import DOC_TYPES, AttestationData, generate_pdf
 from .proof import b64e, build_proof, dump_proof, status_bytes, utc_iso
 from .registry import Registry
@@ -18,13 +19,18 @@ NONCE_MAX_LEN = 128
 
 @dataclass
 class IssuedDocument:
+    """`pdf` = le fichier unique remis au titulaire (PDF d'origine + preuve jointe)."""
     doc_id: str
-    pdf: bytes
+    base_pdf: bytes   # octets couverts par l'empreinte signée
     proof: dict
 
     @property
     def proof_bytes(self) -> bytes:
         return dump_proof(self.proof)
+
+    @property
+    def pdf(self) -> bytes:
+        return embed(self.base_pdf, self.proof_bytes)
 
 
 class IssuerService:
@@ -70,8 +76,7 @@ class IssuerService:
         doc = IssuedDocument(doc_id, pdf, proof)
         if save:
             self.paths.issued_dir.mkdir(parents=True, exist_ok=True)
-            (self.paths.issued_dir / f"{doc_id}.pdf").write_bytes(pdf)
-            (self.paths.issued_dir / f"{doc_id}.proof.json").write_bytes(doc.proof_bytes)
+            (self.paths.issued_dir / f"{doc_id}.pdf").write_bytes(doc.pdf)
         return doc
 
     def revoke(self, doc_id: str, reason: str = "") -> bool:
