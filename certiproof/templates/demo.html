@@ -1,7 +1,16 @@
 {% extends "base.html" %}
 {% block content %}
+<div class="card" style="border:2px solid var(--brand);display:flex;gap:20px;align-items:center;flex-wrap:wrap">
+  <div style="flex:1;min-width:260px">
+    <h2 style="font-size:20px">Démonstration guidée pour l'auditoire</h2>
+    <p class="muted" style="margin:0">Huit scénarios, un par écran : le faux document à côté de l'original, la différence
+      entourée, les empreintes comparées caractère par caractère, les contrôles qui s'allument un par un et le verdict en grand.
+      Idéal à projeter (flèches du clavier pour avancer, Entrée pour vérifier).</p>
+  </div>
+  <a class="btn" style="font-size:17px;padding:12px 22px" href="{{ url_for('guided_start') }}">Lancer la démo guidée →</a>
+</div>
 <div class="card" id="tests">
-  <h2>1. Tests automatiques de falsification</h2>
+  <h2>1. Tests automatiques (pour le rapport)</h2>
   <p class="muted">Rejoue les 16 scénarios (S1 à S8) sur une PKI et un registre jetables, sans toucher à votre
     installation. Le rapport « attendu / observé / conditions » est écrit dans <code>results/scenarios.md</code>.</p>
   <form method="post" action="{{ url_for('demo_tests') }}">

@@ -22,8 +22,8 @@
     <p class="muted">Ouvert à tous. Déposer un PDF et sa preuve pour obtenir le verdict détaillé.</p>
     <div><a class="btn" href="{{ url_for('verification') }}">Ouvrir</a></div></div>
   <div class="card"><h2>3. Démonstration</h2>
-    <p class="muted">Lancer les 16 scénarios de falsification, télécharger le kit, simuler une panne du registre.</p>
-    <div><a class="btn" href="{{ url_for('demo') }}">Ouvrir</a></div></div>
+    <p class="muted">Démo guidée à projeter, tests automatiques des 16 scénarios, kit de fichiers, panne du registre.</p>
+    <div><a class="btn" href="{{ url_for('guided_start') }}">Démo guidée</a> <a class="btn secondary" href="{{ url_for('demo') }}">Tests et kit</a></div></div>
   <div class="card"><h2>4. Mesures</h2>
     <p class="muted">Comparer RSA-PSS et ECDSA : temps de signature, de vérification et tailles.</p>
     <div><a class="btn" href="{{ url_for('mesures') }}">Ouvrir</a></div></div>

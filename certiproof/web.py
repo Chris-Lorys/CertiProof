@@ -349,6 +349,51 @@ def create_app(paths: Paths | None = None, *, status_lookup=None, results_dir: P
         return redirect(request.referrer or url_for("demo"))
 
     # ------------------------------------------------------------------
+    # Démonstration guidée (pour l'auditoire)
+    # ------------------------------------------------------------------
+    from . import guided
+
+    @app.get("/demo/guidee")
+    def guided_start():
+        return redirect(url_for("guided_step", n=0))
+
+    @app.get("/demo/guidee/<int:n>")
+    def guided_step(n):
+        if not 0 <= n < len(guided.STEPS):
+            abort(404)
+        return render_template("guided.html", steps=guided.STEPS, step=guided.STEPS[n], n=n,
+                               meta=guided.load_meta(paths))
+
+    @app.post("/demo/guidee/preparer")
+    @login_required
+    def guided_prepare():
+        _check_csrf()
+        guided.prepare(paths)
+        app.config["SERVICE"] = None
+        return redirect(url_for("guided_step", n=int(request.form.get("n", 1))))
+
+    @app.get("/demo/guidee/<int:n>/verifier")
+    def guided_verify(n):
+        if not 0 <= n < len(guided.STEPS) or "pdf" not in guided.STEPS[n]:
+            abort(404)
+        if guided.load_meta(paths) is None:
+            return jsonify({"error": "Démonstration non préparée"}), 409
+        step = guided.STEPS[n]
+        pdf, proof = guided.files_for(paths, step)
+        result = verifier.verify(pdf, proof, pki.load_trust_store(paths.trust_dir),
+                                 guided.make_lookup(paths, step["lookup"], lookup))
+        return jsonify(result.to_dict())
+
+    @app.get("/demo/guidee/media/<name>")
+    def guided_media(name):
+        if not _SAFE_NAME.match(name):
+            abort(404)
+        path = guided.guided_dir(paths) / name
+        if not path.is_file():
+            abort(404)
+        return send_file(path, max_age=0)
+
+    # ------------------------------------------------------------------
     # Mesures
     # ------------------------------------------------------------------
     @app.get("/mesures")

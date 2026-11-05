@@ -54,14 +54,29 @@ L'application regroupe tout dans des onglets :
 | Démonstration | tous (kit et panne : établissement) | Lancer les 16 scénarios, générer et télécharger le kit de fichiers falsifiés, simuler une panne du registre |
 | Mesures | tous | Comparer RSA-PSS et ECDSA (temps, tailles) et le coût de SHA-256 |
 
-Parcours de démonstration conseillé :
+### Démonstration guidée (à projeter)
 
-1. **Démonstration → Générer le kit**, puis déposer `S1b` et `S2a` dans **Vérification** : deux attestations
-   identiques à l'œil, l'une acceptée, l'autre refusée pour une lettre changée.
-2. Déposer `S4` (faux établissement) puis `S5` (attestation annulée).
-3. **Démonstration → Simuler une panne du registre**, puis vérifier `S1b` : NON CONFIRMÉ. Remettre le registre en
-   ligne : ACCEPTÉ.
-4. **Démonstration → Lancer les 16 scénarios** pour le tableau complet, puis **Mesures**.
+**Démonstration → Lancer la démo guidée** (ou http://127.0.0.1:5001/demo/guidee). Au premier passage, connectez-vous
+avec le compte de l'établissement et cliquez sur « Préparer la démonstration ». Dix écrans, un par idée :
+
+| # | Écran | Ce que voit l'auditoire | Verdict |
+|---|---|---|---|
+| ★ | Trois questions | Signature, SHA-256, registre : à quoi sert chaque mécanisme | – |
+| 1 | Le diplôme authentique | Les 5 contrôles s'allument en vert | ACCEPTÉ |
+| 2 | Alice gonfle sa mention | Original et faux côte à côte, différence entourée, empreintes comparées caractère par caractère | REFUSÉ |
+| 3 | Un seul bit suffit | Deux PDF identiques, 1 bit changé, grille des 256 bits de l'empreinte dont ~50 % changent | REFUSÉ |
+| 4 | Alice modifie aussi la preuve | L'empreinte concorde, mais la signature casse | REFUSÉ |
+| 5 | Un faussaire crée sa propre université | Certificat signé par « AC Pirate » face au magasin de confiance | REFUSÉ |
+| 6 | Document annulé | Tout est valide sauf le statut ; réponse signée du registre affichée | REFUSÉ |
+| 7 | Registre en panne | Contrôles cryptographiques valides, statut inconnu | NON CONFIRMÉ |
+| 8 | Réponse du registre falsifiée | « VALIDE » annoncé, mais signature invalide | NON CONFIRMÉ |
+| 9 | Bilan | Récapitulatif et limites | – |
+
+Navigation : flèches ← → du clavier, **Entrée** pour lancer la vérification. Chaque vérification est réelle : elle
+rejoue le vérificateur sur les fichiers, contrôle après contrôle.
+
+Le reste de l'onglet Démonstration sert au rapport (tableau automatique des 16 scénarios) et aux essais manuels
+(kit de fichiers à déposer dans Vérification, panne du registre).
 
 Le vérificateur interroge le registre par HTTP (`/api/registry`), comme s'il était sur une autre machine, et
 n'a accès ni à la base ni aux clés.
@@ -144,6 +159,7 @@ certiproof/
   verifier.py   vérification complète et verdict
   web.py        application Flask (accueil, émission, vérification, démonstration, mesures)
   scenarios.py  jeu d'essai et rapport attendu / observé
+  guided.py     démonstration guidée : documents, falsifications, aperçus
   bench.py      mesures RSA-PSS / ECDSA et SHA-256
 scripts/pki_openssl.sh   création de la PKI avec la CLI OpenSSL
 lancer.bat / lancer.sh   lancement en un clic (installe les dépendances au premier lancement)

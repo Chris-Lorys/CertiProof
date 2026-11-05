@@ -183,6 +183,9 @@ def verify(
         t0 = time.perf_counter()
         try:
             data = status_lookup(p.record["registry_url"], p.record["doc_id"], nonce, _SHORT[p.algorithm])
+            if isinstance(data, dict) and isinstance(data.get("response"), dict):
+                info["registry_response"] = data["response"]
+            info["registry_nonce"] = nonce
             status, detail = check_status_response(data, doc_id=p.record["doc_id"],
                                                    issuer_id=p.record["issuer_id"], nonce=nonce,
                                                    cert=p.certificate, now=now)

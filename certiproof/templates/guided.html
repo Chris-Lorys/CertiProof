@@ -1,0 +1,367 @@
+{% extends "base.html" %}
+{% block content %}
+<style>
+  main { max-width:1240px !important; }
+  .g-top { display:flex; align-items:center; gap:16px; margin-bottom:18px; flex-wrap:wrap; }
+  .dots { display:flex; gap:6px; }
+  .dots a { width:30px; height:30px; border-radius:50%; display:flex; align-items:center; justify-content:center;
+            font-size:13px; text-decoration:none; color:var(--muted); background:#e6ebf1; font-weight:600; }
+  .dots a.on { background:var(--brand); color:#fff; }
+  .dots a.done { background:#c9d6e6; color:var(--brand); }
+  .g-nav { margin-left:auto; display:flex; gap:8px; }
+  .concept { display:inline-block; font-size:13px; font-weight:700; letter-spacing:.04em; text-transform:uppercase;
+             color:var(--brand); background:#e3ebf5; padding:4px 10px; border-radius:6px; }
+  .g-title { font-size:34px; line-height:1.15; margin:10px 0 6px; }
+  .g-question { font-size:20px; color:var(--muted); margin:0 0 22px; }
+  .g-grid { display:grid; grid-template-columns: 1.25fr 1fr; gap:22px; align-items:start; }
+  @media (max-width: 900px) { .g-grid { grid-template-columns:1fr; } .g-title { font-size:26px; } }
+  .panel { background:#fff; border:1px solid var(--line); border-radius:12px; padding:20px; margin-bottom:18px; }
+  .panel h3 { margin:0 0 12px; font-size:15px; text-transform:uppercase; letter-spacing:.05em; color:var(--muted); }
+  .fraud { border-left:5px solid var(--ko); font-size:17px; }
+  .fraud.none { border-left-color:var(--ok); }
+  .doc-img { width:100%; border:1px solid var(--line); border-radius:8px; display:block; box-shadow:0 2px 10px rgba(0,0,0,.06); }
+  .panel > .doc-img { max-width:460px; margin:0 auto; }
+  .pair { display:grid; grid-template-columns:1fr 1fr; gap:14px; }
+  .pair figure { margin:0; position:relative; }
+  .pair figcaption { font-weight:700; margin-bottom:6px; font-size:15px; }
+  .pair figcaption.bad { color:var(--ko); }
+  .hl { position:absolute; border:4px solid var(--ko); border-radius:6px; box-shadow:0 0 0 9999px rgba(0,0,0,.0);
+        opacity:0; transition:opacity .4s; pointer-events:none; }
+  .hl.show { opacity:1; animation: pulse 1.2s ease-in-out 2; }
+  @keyframes pulse { 50% { transform:scale(1.04); } }
+  .imgwrap { position:relative; }
+  .zoom { display:none; margin-top:14px; }
+  .zoom.show { display:block; }
+  .zoom img { width:100%; border:2px solid var(--line); border-radius:6px; margin-bottom:6px; }
+  .zoom .lbl { font-size:13px; font-weight:700; }
+  .checks .chk { display:flex; align-items:center; gap:14px; padding:11px 0; border-bottom:1px solid var(--line);
+                 font-size:17px; opacity:.45; transition:opacity .3s; }
+  .checks .chk:last-child { border-bottom:0; }
+  .checks .chk.on { opacity:1; }
+  .checks .ic { width:34px; height:34px; border-radius:50%; display:flex; align-items:center; justify-content:center;
+                font-weight:800; font-size:18px; background:#eef1f4; color:var(--muted); flex:none; }
+  .checks .ok .ic { background:var(--ok-bg); color:var(--ok); }
+  .checks .ko .ic { background:var(--ko-bg); color:var(--ko); }
+  .checks .na .ic { background:var(--warn-bg); color:var(--warn); }
+  .checks small { display:block; color:var(--muted); font-size:13px; }
+  .big-verdict { text-align:center; padding:22px; border-radius:12px; font-size:38px; font-weight:800; letter-spacing:.03em;
+                 display:none; margin-bottom:18px; }
+  .big-verdict.show { display:block; animation: pop .35s ease-out; }
+  @keyframes pop { from { transform:scale(.85); opacity:0; } to { transform:scale(1); opacity:1; } }
+  .big-verdict small { display:block; font-size:16px; font-weight:500; letter-spacing:0; margin-top:6px; }
+  .explain { display:none; border-left:5px solid var(--brand); font-size:17px; }
+  .explain.show { display:block; }
+  .run { font-size:18px; padding:13px 26px; width:100%; }
+  .hash { font-family: ui-monospace, Menlo, Consolas, monospace; font-size:15px; line-height:1.7; word-break:break-all; }
+  .hash .d { background:var(--ko-bg); color:var(--ko); font-weight:700; border-radius:2px; }
+  .hash .s { color:var(--ok); }
+  .hrow { display:grid; grid-template-columns:150px 1fr; gap:10px; align-items:baseline; margin:4px 0; }
+  .hrow b { font-size:14px; }
+  .stat { font-size:22px; font-weight:800; margin-top:10px; }
+  .bits { display:grid; grid-template-columns:repeat(32, 1fr); gap:2px; margin-top:10px; }
+  .bits i { aspect-ratio:1; background:#dfe7f0; border-radius:2px; }
+  .bits i.x { background:var(--ko); }
+  .code { font-family: ui-monospace, Menlo, Consolas, monospace; font-size:14px; background:#f6f8fa; border-radius:8px;
+          padding:14px; overflow-x:auto; line-height:1.6; white-space:pre; }
+  .code .old { text-decoration:line-through; color:var(--muted); }
+  .code .new { background:var(--warn-bg); color:var(--warn); font-weight:700; }
+  .cert { border:2px solid var(--line); border-radius:10px; padding:14px 16px; margin-bottom:12px; }
+  .cert .k { font-size:12px; color:var(--muted); text-transform:uppercase; letter-spacing:.05em; }
+  .cert .v { font-size:17px; font-weight:700; margin-bottom:6px; }
+  .cert.bad { border-color:var(--ko); background:var(--ko-bg); }
+  .cert.good { border-color:var(--ok); background:var(--ok-bg); }
+  .arrow-down { text-align:center; font-size:26px; color:var(--muted); line-height:1; margin:-4px 0 8px; }
+  .intro3 { display:grid; grid-template-columns:repeat(3,1fr); gap:18px; }
+  @media (max-width: 900px) { .intro3 { grid-template-columns:1fr; } }
+  .intro3 .q { font-size:24px; font-weight:800; margin-bottom:10px; }
+  .intro3 .m { font-size:16px; color:var(--muted); }
+  .intro3 .tagx { margin-top:14px; font-weight:700; color:var(--brand); }
+  .flow { display:flex; align-items:center; justify-content:center; gap:14px; flex-wrap:wrap; font-size:17px; margin:22px 0 6px; }
+  .flow .n { background:#fff; border:2px solid var(--line); border-radius:10px; padding:12px 18px; font-weight:700; }
+  .flow .a { color:var(--muted); font-size:24px; }
+  .server { text-align:center; padding:18px; border-radius:12px; border:2px dashed var(--warn); background:var(--warn-bg); color:var(--warn); font-weight:800; font-size:20px; }
+  .resp .row { display:grid; grid-template-columns:140px 1fr; gap:8px; font-size:15px; margin:3px 0; }
+  .stamp { display:inline-block; font-weight:800; padding:4px 12px; border-radius:6px; font-size:16px; margin-top:8px; }
+  .stamp.ok { background:var(--ok-bg); color:var(--ok); } .stamp.ko { background:var(--ko-bg); color:var(--ko); }
+  .kbd { font-size:12px; color:var(--muted); }
+  .sumtable td, .sumtable th { font-size:16px; padding:10px 8px; }
+</style>
+
+<div class="g-top">
+  <div class="dots">
+    {% for s in steps %}<a href="{{ url_for('guided_step', n=loop.index0) }}" title="{{ s.title }}"
+       class="{{ 'on' if loop.index0 == n else ('done' if loop.index0 < n) }}">{{ loop.index0 if loop.index0 else '★' }}</a>{% endfor %}
+  </div>
+  <span class="kbd">← → pour naviguer · Entrée pour vérifier</span>
+  <div class="g-nav">
+    {% if n > 0 %}<a class="btn secondary" href="{{ url_for('guided_step', n=n-1) }}">← Précédent</a>{% endif %}
+    {% if n < steps|length - 1 %}<a class="btn" href="{{ url_for('guided_step', n=n+1) }}">Suivant →</a>{% endif %}
+  </div>
+</div>
+
+<span class="concept">{{ step.concept }}</span>
+<h1 class="g-title">{{ step.title }}</h1>
+<p class="g-question">{{ step.question }}</p>
+
+{# ------------------------------------------------------------------ #}
+{% if step.visual == "intro" %}
+<div class="intro3">
+  <div class="panel"><div class="q">Qui l'a signé ?</div>
+    <div class="m">L'université signe le document avec sa clé privée. Un certificat, émis par une autorité reconnue, prouve que cette clé est bien la sienne.</div>
+    <div class="tagx">Signature RSA-PSS / ECDSA + certificat X.509</div></div>
+  <div class="panel"><div class="q">A-t-il été modifié ?</div>
+    <div class="m">L'empreinte SHA-256 du PDF est incluse dans ce qui est signé. Le moindre octet modifié change l'empreinte.</div>
+    <div class="tagx">Hachage SHA-256</div></div>
+  <div class="panel"><div class="q">Est-il encore valide ?</div>
+    <div class="m">Le registre de l'université indique si le document a été annulé, par une réponse elle-même signée.</div>
+    <div class="tagx">Registre de révocation</div></div>
+</div>
+<div class="flow">
+  <span class="n">Université</span><span class="a">→</span>
+  <span class="n">PDF + fichier de preuve</span><span class="a">→</span>
+  <span class="n">Titulaire</span><span class="a">→</span>
+  <span class="n">Recruteur (vérificateur)</span>
+</div>
+<p style="text-align:center;color:var(--muted)">Le vérificateur ne connaît à l'avance qu'une seule chose : le certificat de l'autorité de certification.</p>
+<p style="text-align:center;margin-top:24px"><a class="btn" style="font-size:18px;padding:12px 28px" href="{{ url_for('guided_step', n=1) }}">Commencer la démonstration →</a></p>
+
+{# ------------------------------------------------------------------ #}
+{% elif step.visual == "summary" %}
+<div class="panel">
+  <table class="sumtable">
+    <tr><th>Étape</th><th>Fraude</th><th>Détectée par</th><th>Verdict</th></tr>
+    <tr><td>1</td><td>Aucune (document authentique)</td><td>–</td><td><span class="pill valid">ACCEPTÉ</span></td></tr>
+    <tr><td>2</td><td>Mention modifiée dans le PDF</td><td>Empreinte SHA-256</td><td><span class="pill revoked">REFUSÉ</span></td></tr>
+    <tr><td>3</td><td>Un seul bit modifié</td><td>Empreinte SHA-256 (effet avalanche)</td><td><span class="pill revoked">REFUSÉ</span></td></tr>
+    <tr><td>4</td><td>PDF et empreinte de la preuve modifiés</td><td>Signature</td><td><span class="pill revoked">REFUSÉ</span></td></tr>
+    <tr><td>5</td><td>Fausse université avec sa propre clé</td><td>Certificat (PKI)</td><td><span class="pill revoked">REFUSÉ</span></td></tr>
+    <tr><td>6</td><td>Document annulé</td><td>Registre</td><td><span class="pill revoked">REFUSÉ</span></td></tr>
+    <tr><td>7</td><td>Registre en panne</td><td>–</td><td><span class="pill" style="background:var(--warn-bg);color:var(--warn)">NON CONFIRMÉ</span></td></tr>
+    <tr><td>8</td><td>Fausse réponse du registre</td><td>Signature + nonce de la réponse</td><td><span class="pill" style="background:var(--warn-bg);color:var(--warn)">NON CONFIRMÉ</span></td></tr>
+  </table>
+</div>
+<div class="panel"><h3>Limites</h3>
+  <ul style="font-size:16px;margin:0">
+    <li>CertiProof ne garantit pas que les informations saisies par l'université sont vraies, ni l'identité de la personne qui présente le document.</li>
+    <li>Toute la sécurité repose sur la protection de la clé privée de l'université.</li>
+    <li>Un PDF réenregistré (même sans changement visible) devient invalide.</li>
+  </ul>
+</div>
+
+{# ------------------------------------------------------------------ #}
+{% elif not meta %}
+<div class="panel" style="text-align:center;padding:40px">
+  <p style="font-size:18px">La démonstration n'est pas encore préparée. Elle va émettre un diplôme authentique, une attestation
+    annulée, et fabriquer les falsifications.</p>
+  {% if session.get("role") %}
+  <form method="post" action="{{ url_for('guided_prepare') }}">
+    <input type="hidden" name="csrf" value="{{ csrf_token() }}"><input type="hidden" name="n" value="{{ n }}">
+    <button class="run" style="max-width:360px">Préparer la démonstration</button>
+  </form>
+  {% else %}
+  <p><a class="btn" href="{{ url_for('login', next=request.path) }}">Se connecter en tant qu'établissement pour la préparer</a></p>
+  {% endif %}
+</div>
+
+{# ------------------------------------------------------------------ #}
+{% else %}
+{% set M = url_for('guided_media', name='X')[:-1] %}
+<div class="g-grid">
+  <div>
+    {% if step.visual == "compare" %}
+      <div class="panel">
+        <div class="pair">
+          <figure><figcaption>Original (délivré par l'université)</figcaption>
+            <div class="imgwrap"><img class="doc-img" src="{{ M }}original.png" alt="PDF original">
+              {% if meta.diff %}<div class="hl" style="left:{{ meta.diff.left }}%;top:{{ meta.diff.top }}%;width:{{ meta.diff.width }}%;height:{{ meta.diff.height }}%"></div>{% endif %}</div></figure>
+          <figure><figcaption class="bad">Falsifié par Alice</figcaption>
+            <div class="imgwrap"><img class="doc-img" src="{{ M }}forged.png" alt="PDF falsifié">
+              {% if meta.diff %}<div class="hl" style="left:{{ meta.diff.left }}%;top:{{ meta.diff.top }}%;width:{{ meta.diff.width }}%;height:{{ meta.diff.height }}%"></div>{% endif %}</div></figure>
+        </div>
+        <p style="text-align:center;margin:14px 0 0"><button class="secondary" id="reveal">Révéler la différence</button></p>
+        <div class="zoom" id="zoom">
+          <div class="lbl">Original</div><img src="{{ M }}zoom-original.png" alt="">
+          <div class="lbl" style="color:var(--ko)">Falsifié</div><img src="{{ M }}zoom-forged.png" alt="">
+        </div>
+      </div>
+      <div class="panel" id="hashpanel" style="display:none"><h3>Empreintes SHA-256</h3><div id="hashes"></div></div>
+
+    {% elif step.visual == "avalanche" %}
+      <div class="panel">
+        <div class="pair">
+          <figure><figcaption>Original</figcaption><img class="doc-img" src="{{ M }}original.png" alt=""></figure>
+          <figure><figcaption class="bad">Un bit modifié</figcaption><img class="doc-img" src="{{ M }}onebit.png" alt=""></figure>
+        </div>
+        <p style="font-size:17px;margin:16px 0 0;text-align:center">
+          Octet n° {{ meta.onebit.position }} sur {{ meta.onebit.size }} :
+          <b>« {{ meta.onebit.before }} »</b>
+          <span class="hash" id="b1"></span> devient <b>« {{ meta.onebit.after }} »</b> <span class="hash" id="b2"></span>
+        </p>
+      </div>
+      <div class="panel" id="hashpanel" style="display:none"><h3>Empreintes SHA-256</h3><div id="hashes"></div>
+        <div class="stat" id="bitstat"></div><div class="bits" id="bits"></div></div>
+
+    {% elif step.visual == "proof_edit" %}
+      <div class="panel"><h3>Le PDF falsifié</h3><img class="doc-img" src="{{ M }}forged.png" alt=""></div>
+      <div class="panel"><h3>Le fichier de preuve modifié par Alice</h3>
+<div class="code">"record": {
+  "doc_id": "{{ meta.original_doc_id }}",
+  "issuer_id": "…",
+  "pdf_sha256": <span class="old">"{{ meta.proof_hash.original[:32] }}…"</span>
+                <span class="new">"{{ meta.proof_hash.forged[:32] }}…"</span>,
+  …
+},
+"signature": "MEUCIQ…"   <span style="color:var(--muted)">← inchangée : Alice n'a pas la clé privée</span></div>
+      </div>
+      <div class="panel" id="hashpanel" style="display:none"><h3>Empreintes SHA-256</h3><div id="hashes"></div></div>
+
+    {% elif step.visual == "certs" %}
+      <div class="panel"><h3>Certificat joint à la preuve</h3>
+        <div class="cert" id="cert-presented">
+          <div class="k">Établissement</div><div class="v">{{ meta.certs.rogue.subject }}</div>
+          <div class="k">Signé par</div><div class="v">{{ meta.certs.rogue.issuer }}</div>
+        </div>
+        <div class="arrow-down">↕ comparé avec</div>
+        <h3>Magasin de confiance du vérificateur</h3>
+        {% for c in meta.certs.trusted %}
+        <div class="cert good"><div class="k">Autorité reconnue</div><div class="v">{{ c.subject }}</div></div>
+        {% endfor %}
+        <p style="color:var(--muted);margin:6px 0 0">Le vrai certificat de l'université, lui, est signé par « {{ meta.certs.genuine.issuer }} ».</p>
+      </div>
+      <div class="panel"><h3>Le faux diplôme</h3><img class="doc-img" src="{{ M }}rogue.png" alt=""></div>
+
+    {% elif step.visual == "registry" %}
+      <div class="panel"><h3>Le document présenté</h3><img class="doc-img" src="{{ M }}revoked.png" alt=""></div>
+      <div class="panel resp" id="resppanel" style="display:none"><h3>Réponse du registre</h3><div id="resp"></div></div>
+
+    {% elif step.visual == "outage" %}
+      <div class="panel"><h3>Le document présenté</h3><img class="doc-img" src="{{ M }}original.png" alt=""></div>
+
+    {% else %}
+      <div class="panel"><h3>Le document présenté</h3><img class="doc-img" src="{{ M }}{{ step.pdf }}.png" alt=""></div>
+    {% endif %}
+  </div>
+
+  <div>
+    <div class="panel fraud {{ 'none' if step.key == 'authentique' }}">
+      <h3>{{ "La situation" if step.key == "authentique" else "Ce que fait le fraudeur" }}</h3>{{ step.fraud }}
+    </div>
+    {% if step.visual == "outage" %}<div class="server" style="margin-bottom:18px">⚠ Serveur du registre : hors ligne</div>{% endif %}
+    <button class="run" id="run">Vérifier le document</button>
+    <div class="panel checks" id="checks" style="margin-top:18px">
+      {% for name in ["Preuve", "Émetteur reconnu", "Signature", "Intégrité du PDF", "Statut (registre)"] %}
+      <div class="chk" data-name="{{ name }}"><div class="ic">·</div><div><b>{{ name }}</b><small>en attente</small></div></div>
+      {% endfor %}
+    </div>
+    <div class="big-verdict" id="verdict"></div>
+    <div class="panel explain" id="explain"><h3>Pourquoi ?</h3>{{ step.explain }}</div>
+  </div>
+</div>
+{% endif %}
+
+<script>
+(function () {
+  const n = {{ n }}, last = {{ steps|length - 1 }};
+  const go = i => { location.href = "{{ url_for('guided_step', n=0) }}".replace(/0$/, i); };
+  document.addEventListener("keydown", e => {
+    if (e.target.tagName === "INPUT") return;
+    if (e.key === "ArrowRight" && n < last) go(n + 1);
+    if (e.key === "ArrowLeft" && n > 0) go(n - 1);
+    if (e.key === "Enter") { const b = document.getElementById("run"); if (b && !b.disabled) { e.preventDefault(); b.click(); } }
+  });
+
+  const reveal = document.getElementById("reveal");
+  if (reveal) reveal.onclick = () => {
+    document.querySelectorAll(".hl").forEach(h => h.classList.add("show"));
+    document.getElementById("zoom").classList.add("show");
+  };
+
+  const toBits = c => c.charCodeAt(0).toString(2).padStart(8, "0");
+  {% if step.visual == "avalanche" and meta %}
+  document.getElementById("b1").textContent = "(" + toBits({{ meta.onebit.before|tojson }}) + ")";
+  document.getElementById("b2").textContent = "(" + toBits({{ meta.onebit.after|tojson }}) + ")";
+  {% endif %}
+
+  const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+  function hashLine(label, h, other) {
+    let out = "";
+    for (let i = 0; i < h.length; i++) {
+      const ch = esc(h[i]);
+      out += h[i] === other[i] ? `<span class="s">${ch}</span>` : `<span class="d">${ch}</span>`;
+      if (i % 8 === 7) out += " ";
+    }
+    return `<div class="hrow"><b>${label}</b><div class="hash">${out}</div></div>`;
+  }
+  function showHashes(info) {
+    const box = document.getElementById("hashes");
+    if (!box) return;
+    const a = info.expected_sha256, b = info.pdf_sha256;
+    let diff = 0; for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) diff++;
+    box.innerHTML = hashLine("Signée par l'université", a, b) + hashLine("Calculée sur le PDF reçu", b, a) +
+      `<div class="stat" style="color:${diff ? "var(--ko)" : "var(--ok)"}">${diff ? diff + " caractères sur 64 diffèrent" : "Identiques"}</div>`;
+    document.getElementById("hashpanel").style.display = "block";
+    const grid = document.getElementById("bits");
+    if (grid) {
+      const bin = h => h.split("").map(c => parseInt(c, 16).toString(2).padStart(4, "0")).join("");
+      const x = bin(a), y = bin(b);
+      let cnt = 0, html = "";
+      for (let i = 0; i < 256; i++) { const d = x[i] !== y[i]; if (d) cnt++; html += `<i class="${d ? "x" : ""}"></i>`; }
+      grid.innerHTML = html;
+      document.getElementById("bitstat").textContent = `${cnt} bits sur 256 ont changé (${Math.round(cnt / 2.56)} %)`;
+    }
+  }
+  function showRegistry(info) {
+    const box = document.getElementById("resp");
+    if (!box) return;
+    const r = info.registry_response;
+    if (!r) { box.innerHTML = "<p>Aucune réponse.</p>"; }
+    else {
+      const ok = info.__statusOk;
+      box.innerHTML = `
+        <div class="row"><b>Document</b><span class="hash">${esc(r.doc_id)}</span></div>
+        <div class="row"><b>Statut annoncé</b><span style="font-weight:800;color:${!ok ? "var(--muted)" : r.status === "valid" ? "var(--ok)" : "var(--ko)"}">${r.status === "valid" ? "VALIDE" : r.status === "revoked" ? "RÉVOQUÉ" : esc(r.status)}</span></div>
+        ${r.revoked_at ? `<div class="row"><b>Annulé le</b><span>${esc(r.revoked_at)}</span></div>` : ""}
+        ${r.reason ? `<div class="row"><b>Motif</b><span>${esc(r.reason)}</span></div>` : ""}
+        <div class="row"><b>Nonce</b><span class="hash">${esc(r.nonce)}</span></div>
+        <div class="stamp ${ok ? "ok" : "ko"}">${ok ? "✓ Signée par l'université" : "✗ Signature invalide : réponse falsifiée"}</div>`;
+    }
+    document.getElementById("resppanel").style.display = "block";
+  }
+
+  const run = document.getElementById("run");
+  if (!run) return;
+  run.onclick = async () => {
+    run.disabled = true; run.textContent = "Vérification en cours…";
+    document.querySelectorAll(".chk").forEach(c => { c.className = "chk"; c.querySelector(".ic").textContent = "·"; c.querySelector("small").textContent = "en attente"; });
+    const v = document.getElementById("verdict"); v.className = "big-verdict";
+    document.getElementById("explain").classList.remove("show");
+    const res = await fetch("{{ url_for('guided_verify', n=n) if step.pdf else '' }}").then(r => r.json());
+    const byName = Object.fromEntries((res.checks || []).map(c => [c.name, c]));
+    const rows = [...document.querySelectorAll(".chk")];
+    for (const row of rows) {
+      await new Promise(r => setTimeout(r, 650));
+      const c = byName[row.dataset.name];
+      const st = !c ? "na" : c.ok === true ? "ok" : c.ok === false ? "ko" : "na";
+      row.className = "chk on " + st;
+      row.querySelector(".ic").textContent = st === "ok" ? "✓" : st === "ko" ? "✗" : "?";
+      row.querySelector("small").textContent = c ? c.detail : "non effectué";
+      if (row.dataset.name === "Intégrité du PDF" && res.info && res.info.pdf_sha256) showHashes(res.info);
+      if (row.dataset.name === "Émetteur reconnu") {
+        const cp = document.getElementById("cert-presented");
+        if (cp) cp.classList.add(st === "ok" ? "good" : "bad");
+      }
+      if (row.dataset.name === "Statut (registre)" && res.info) {
+        res.info.__statusOk = c && c.ok !== null;
+        showRegistry(res.info);
+      }
+    }
+    await new Promise(r => setTimeout(r, 500));
+    const cls = res.verdict === "ACCEPTÉ" ? "v-ok" : res.verdict === "REFUSÉ" ? "v-ko" : "v-warn";
+    v.className = "big-verdict show " + cls;
+    v.innerHTML = esc(res.verdict) + `<small>${esc(res.message)}</small>`;
+    document.getElementById("explain").classList.add("show");
+    run.disabled = false; run.textContent = "Vérifier à nouveau";
+  };
+})();
+</script>
+{% endblock %}

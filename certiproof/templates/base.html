@@ -74,7 +74,7 @@
     <a href="{{ url_for('home') }}" class="{{ 'on' if ep == 'home' }}">Accueil</a>
     <a href="{{ url_for('emission') }}" class="{{ 'on' if ep in ('emission', 'login') }}">Émission</a>
     <a href="{{ url_for('verification') }}" class="{{ 'on' if ep in ('verification', 'verify') }}">Vérification</a>
-    <a href="{{ url_for('demo') }}" class="{{ 'on' if ep == 'demo' }}">Démonstration</a>
+    <a href="{{ url_for('demo') }}" class="{{ 'on' if ep.startswith('demo') or ep.startswith('guided') }}">Démonstration</a>
     <a href="{{ url_for('mesures') }}" class="{{ 'on' if ep == 'mesures' }}">Mesures</a>
   </nav>
   <div class="right">

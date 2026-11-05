@@ -129,3 +129,22 @@ def test_csrf_required(app):
     c = app.test_client()
     c.get("/verification")
     assert c.post("/verification", data={}).status_code == 400
+
+
+def test_guided_demo(app):
+    from certiproof import guided
+    c = app.test_client()
+    assert c.get("/demo/guidee/0").status_code == 200
+    tok = login(c)
+    c.post("/demo/guidee/preparer", data={"csrf": tok, "n": "1"})
+    expected = {"authentique": "OK", "note": "FICHIER_DIFFERENT", "avalanche": "FICHIER_DIFFERENT",
+                "preuve": "SIGNATURE_INCORRECTE", "faussaire": "EMETTEUR_INCONNU", "revoque": "DOCUMENT_REVOQUE",
+                "panne": "REGISTRE_INACCESSIBLE", "registre_forge": "REPONSE_REGISTRE_INVALIDE"}
+    for n, step in enumerate(guided.STEPS):
+        page = c.get(f"/demo/guidee/{n}")
+        assert page.status_code == 200, step["key"]
+        if step["key"] in expected:
+            assert c.get(f"/demo/guidee/{n}/verifier").get_json()["code"] == expected[step["key"]], step["key"]
+    assert c.get("/demo/guidee/media/original.png").status_code == 200
+    assert c.get("/demo/guidee/media/..%2Fsecret_key").status_code == 404
+    assert c.get("/demo/guidee/99").status_code == 404
