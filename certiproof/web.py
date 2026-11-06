@@ -27,7 +27,7 @@ from pathlib import Path
 from flask import (Flask, Response, abort, flash, g, jsonify, redirect, render_template, request, send_file,
                    session, url_for)
 
-from . import pki, verifier
+from . import forge, guided, pki, verifier
 from .config import DEFAULT_ISSUER_ID, DEFAULT_ISSUER_NAME, PROJECT_ROOT, Paths
 from .issuer import IssuerService
 from .pdfgen import DOC_TYPES
@@ -390,6 +390,71 @@ def create_app(paths: Paths | None = None, *, status_lookup=None, results_dir: P
         if not path.is_file():
             abort(404)
         return send_file(path, max_age=0)
+
+    # ------------------------------------------------------------------
+    # Atelier du faussaire : falsifier en direct un PDF qu'on vient d'émettre
+    # ------------------------------------------------------------------
+    atelier_dir = paths.root / "atelier"
+
+    def _atelier_state():
+        p = atelier_dir / "etat.json"
+        return json.loads(p.read_text(encoding="utf-8")) if p.exists() else None
+
+    @app.get("/atelier")
+    def atelier():
+        return render_template("atelier.html", attacks=forge.ATTACKS, state=_atelier_state(), error=None, form={})
+
+    @app.post("/atelier")
+    def atelier_forge():
+        _check_csrf()
+        f = request.files.get("pdf")
+        form = {k: request.form.get(k, "") for k in ("attack", "old", "new")}
+        error = None
+        if not f or not f.filename:
+            error = "Déposez d'abord le PDF à falsifier."
+        else:
+            pdf = f.read()
+            try:
+                fake = forge.forge(pdf, form["attack"], form["old"], form["new"])
+            except forge.ForgeError as e:
+                error = str(e)
+        if error:
+            return render_template("atelier.html", attacks=forge.ATTACKS, state=None, error=error, form=form), 400
+        if atelier_dir.exists():
+            shutil.rmtree(atelier_dir)
+        atelier_dir.mkdir(parents=True)
+        (atelier_dir / "original.pdf").write_bytes(pdf)
+        (atelier_dir / "faux.pdf").write_bytes(fake)
+        a, b = guided._render(pdf), guided._render(fake)
+        (atelier_dir / "original.png").write_bytes(guided._png(a))
+        (atelier_dir / "faux.png").write_bytes(guided._png(b))
+        stem = re.sub(r"[^A-Za-z0-9_-]", "_", Path(f.filename).stem)[:60] or "document"
+        state = {"attack": form["attack"], "label": forge.ATTACKS[form["attack"]], "old": form["old"],
+                 "new": form["new"], "expected": forge.EXPECTED[form["attack"]], "name": f"{stem}-falsifie.pdf",
+                 "size_before": len(pdf), "size_after": len(fake), "token": secrets.token_hex(4)}
+        (atelier_dir / "etat.json").write_text(json.dumps(state, ensure_ascii=False), encoding="utf-8")
+        return redirect(url_for("atelier") + "#resultat")
+
+    @app.get("/atelier/media/<name>")
+    def atelier_media(name):
+        if name not in ("original.png", "faux.png", "faux.pdf"):
+            abort(404)
+        path = atelier_dir / name
+        if not path.is_file():
+            abort(404)
+        state = _atelier_state() or {}
+        if name == "faux.pdf":
+            return send_file(path, as_attachment=True, download_name=state.get("name", "faux.pdf"), max_age=0)
+        return send_file(path, max_age=0)
+
+    @app.get("/atelier/verifier")
+    def atelier_verify():
+        path = atelier_dir / "faux.pdf"
+        if not path.is_file():
+            return redirect(url_for("atelier"))
+        result = verifier.verify(path.read_bytes(), None, pki.load_trust_store(paths.trust_dir), lookup)
+        return render_template("verify.html", result=result, pdf_name=(_atelier_state() or {}).get("name", "faux.pdf"),
+                               proof_name="")
 
     # ------------------------------------------------------------------
     # Mesures

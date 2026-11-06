@@ -83,6 +83,20 @@ Le reste de l'onglet Démonstration sert au rapport (tableau automatique des 16 
 Le vérificateur interroge le registre par HTTP (`/api/registry`), comme s'il était sur une autre machine, et
 n'a accès ni à la base ni aux clés.
 
+### Démonstration en direct (document émis devant le public)
+
+L'onglet **Faussaire** (atelier du faussaire) fabrique un faux à partir d'une attestation qui vient d'être émise.
+Il n'a accès ni aux clés ni au registre : il modifie seulement le fichier, comme un fraudeur.
+
+1. **Émission** : émettre une attestation (mention « Passable ») et télécharger le PDF.
+2. Ouvrir le PDF : la preuve est dans le panneau des pièces jointes (trombone).
+3. **Vérification** : déposer le PDF → ACCEPTÉ.
+4. **Faussaire** : « Passable » → « Excellent », réécriture complète → REFUSÉ (`FICHIER_DIFFERENT`).
+5. Même chose en « sauvegarde rapide » (ajout à la fin, comme Acrobat) → REFUSÉ (`CONTENU_AJOUTE_APRES_SIGNATURE`).
+6. Changer la note **et** l'empreinte dans la preuve → REFUSÉ (`SIGNATURE_INCORRECTE`) : sans la clé privée, impossible de re-signer.
+7. **Émission** : révoquer l'attestation, la vérifier de nouveau → REFUSÉ (`DOCUMENT_REVOQUE`).
+8. **Démonstration** : couper le registre, vérifier → NON CONFIRMÉ.
+
 ### Ligne de commande (optionnelle)
 
 Les mêmes fonctions restent disponibles sans interface :

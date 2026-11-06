@@ -80,7 +80,7 @@ def generate_pdf(a: AttestationData) -> bytes:
     c.setFillColor(colors.grey)
     c.drawString(2.5 * cm, 3 * cm, f"Identifiant du document : {a.doc_id}")
     c.drawString(2.5 * cm, 2.5 * cm,
-                 "Vérifiable avec son fichier de preuve CertiProof (.proof.json).")
+                 "Preuve CertiProof jointe à ce PDF (pièce jointe certiproof-proof.json).")
     c.drawRightString(w - 2.5 * cm, 3 * cm, "Le registraire")
 
     c.showPage()

@@ -160,3 +160,28 @@ def test_guided_demo_from_older_version_is_reprepared(paths):
     assert guided.load_meta(paths) is None
     guided.prepare(paths)
     assert guided.load_meta(paths)["version"] == guided.META_VERSION
+
+
+def test_atelier_du_faussaire(app):
+    c = app.test_client()
+    tok = login(c)
+    r = c.post("/emission/issue", data={"csrf": tok, "doc_type": "diplome", "holder": "Prof Live", "program": "Crypto",
+                                        "grade": "Passable", "date": "2026-12-01", "alg": "ecdsa"}, follow_redirects=True)
+    doc_id = re.search(r"Attestation (UFS-\d{4}-[0-9A-F]+) émise", r.get_data(as_text=True)).group(1)
+    pdf = c.get(f"/emission/{doc_id}.pdf").data
+    assert c.get("/atelier").status_code == 200
+    expected = {"texte": "FICHIER_DIFFERENT", "incremental": "CONTENU_AJOUTE_APRES_SIGNATURE",
+                "texte_preuve": "SIGNATURE_INCORRECTE", "bit": "FICHIER_DIFFERENT", "sans_preuve": "PREUVE_ABSENTE"}
+    for attack, code in expected.items():
+        r = c.post("/atelier", data={"csrf": tok, "attack": attack, "old": "Passable", "new": "Excellent",
+                                     "pdf": (io.BytesIO(pdf), "diplome.pdf")}, content_type="multipart/form-data")
+        assert r.status_code == 302, attack
+        fake = c.get("/atelier/media/faux.pdf").data
+        got = c.post("/api/verify", data={"pdf": (io.BytesIO(fake), "f.pdf")},
+                     content_type="multipart/form-data").get_json()["code"]
+        assert got == code, attack
+        assert "REFUSÉ" in c.get("/atelier/verifier").get_data(as_text=True)
+    r = c.post("/atelier", data={"csrf": tok, "attack": "texte", "old": "Inexistant", "new": "X",
+                                 "pdf": (io.BytesIO(pdf), "diplome.pdf")}, content_type="multipart/form-data")
+    assert r.status_code == 400 and "introuvable" in r.get_data(as_text=True)
+    assert c.get("/atelier/media/..%2Fsecret_key").status_code == 404

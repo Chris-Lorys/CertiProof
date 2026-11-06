@@ -125,7 +125,7 @@ STEPS = [
 
 
 # À incrémenter quand le contenu de la démo change : une démo plus ancienne est re-préparée
-META_VERSION = 2
+META_VERSION = 3
 
 
 def guided_dir(paths: Paths) -> Path:

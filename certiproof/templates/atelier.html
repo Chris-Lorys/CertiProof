@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="card">
+  <h2>Atelier du faussaire</h2>
+  <p class="muted">Ici, on joue le fraudeur. Déposez une attestation qui vient d'être émise, choisissez une falsification,
+    puis téléchargez le faux et vérifiez-le dans l'onglet Vérification. L'atelier n'a accès ni aux clés ni au registre :
+    il ne peut que modifier le fichier, exactement comme un fraudeur.</p>
+  {% if error %}<div class="flash error">{{ error }}</div>{% endif %}
+  <form method="post" action="{{ url_for('atelier_forge') }}" enctype="multipart/form-data">
+    <input type="hidden" name="csrf" value="{{ csrf_token() }}">
+    <p><label>Attestation authentique (PDF)</label><input type="file" name="pdf" accept="application/pdf,.pdf" required></p>
+    <p><label>Falsification</label>
+      <select name="attack" id="attack">
+        {% for k, label in attacks.items() %}<option value="{{ k }}" {{ 'selected' if form.attack == k }}>{{ label }}</option>{% endfor %}
+      </select></p>
+    <div class="grid" id="textfields">
+      <p><label>Texte à remplacer (tel qu'il apparaît sur le diplôme)</label>
+        <input name="old" value="{{ form.old or 'Passable' }}"></p>
+      <p><label>Nouveau texte</label><input name="new" value="{{ form.new or 'Excellent' }}"></p>
+    </div>
+    <button>Fabriquer le faux</button>
+  </form>
+</div>
+
+{% if state %}
+<div class="card" id="resultat">
+  <h2>Faux fabriqué : {{ state.label }}</h2>
+  {% if state.attack in ("texte", "incremental", "texte_preuve") %}
+  <p>« {{ state.old }} » est devenu « <strong>{{ state.new }}</strong> ».</p>
+  {% endif %}
+  <div class="grid">
+    <div><div class="muted">Original ({{ state.size_before }} octets)</div>
+      <img src="{{ url_for('atelier_media', name='original.png') }}?{{ state.token }}" style="width:100%;border:1px solid var(--line)" alt="Original"></div>
+    <div><div class="muted">Faux ({{ state.size_after }} octets)</div>
+      <img src="{{ url_for('atelier_media', name='faux.png') }}?{{ state.token }}" style="width:100%;border:1px solid var(--ko)" alt="Faux"></div>
+  </div>
+  <p class="actions" style="margin-top:16px">
+    <a class="btn" href="{{ url_for('atelier_media', name='faux.pdf') }}">Télécharger le faux ({{ state.name }})</a>
+    <a class="btn secondary" href="{{ url_for('atelier_verify') }}">Le vérifier directement</a>
+  </p>
+  <p class="muted">Résultat attendu à la vérification : {{ state.expected }}.</p>
+</div>
+{% endif %}
+
+<script>
+  const sel = document.getElementById("attack"), tf = document.getElementById("textfields");
+  const sync = () => { tf.style.display = ["texte", "incremental", "texte_preuve"].includes(sel.value) ? "" : "none"; };
+  sel.addEventListener("change", sync); sync();
+</script>
+{% endblock %}
