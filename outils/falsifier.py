@@ -1,19 +1,29 @@
-"""Atelier du faussaire : falsifier, en direct, un PDF qu'on vient d'émettre.
+"""Outil d'attaque (hors application) : falsifier une attestation CertiProof.
 
-Sert à la démonstration live : on part d'une vraie attestation (avec sa preuve jointe)
-et on fabrique un faux comme le ferait un fraudeur, pour montrer que le vérificateur le refuse.
-Ces outils ne visent que les PDF produits par CertiProof (reportlab, table xref classique).
+Ce script joue le rôle du fraudeur pour l'évaluation de sécurité. Il ne fait pas partie de
+l'application : il n'utilise ni clé privée ni registre, il modifie seulement le fichier.
+
+    python -m outils.falsifier textes  diplome.pdf
+    python -m outils.falsifier texte   diplome.pdf "Passable" "Excellent" -o faux.pdf
+    python -m outils.falsifier rapide  diplome.pdf "Passable" "Excellent" -o faux.pdf
+    python -m outils.falsifier texte-preuve diplome.pdf "Passable" "Excellent" -o faux.pdf
+    python -m outils.falsifier bit     diplome.pdf -o faux.pdf
+    python -m outils.falsifier sans-preuve diplome.pdf -o faux.pdf
+
+Ne vise que les PDF produits par CertiProof (reportlab, table xref classique).
 """
 
 from __future__ import annotations
 
+import argparse
 import base64
+import sys
 import json
 import re
 import zlib
 
-from .embedding import EmbeddingError, _trailer, append_update, embed, extract, objects_of
-from .proof import ProofFormatError, dump_proof, parse_proof, sha256_hex
+from certiproof.embedding import EmbeddingError, _trailer, append_update, embed, extract, objects_of
+from certiproof.proof import ProofFormatError, dump_proof, parse_proof, sha256_hex
 
 ATTACKS = {
     "texte": "Changer un texte, puis enregistrer le fichier (réécriture complète)",
@@ -172,3 +182,38 @@ def forge(pdf: bytes, attack: str, old: str = "", new: str = "") -> bytes:
         return embed(forged_base, dump_proof(p))
     except EmbeddingError as e:
         raise ForgeError(str(e)) from e
+
+
+COMMANDS = {"texte": "texte", "rapide": "incremental", "texte-preuve": "texte_preuve", "bit": "bit",
+            "sans-preuve": "sans_preuve"}
+
+
+def main(argv=None) -> int:
+    p = argparse.ArgumentParser(prog="python -m outils.falsifier", description="Falsifier une attestation CertiProof")
+    sub = p.add_subparsers(dest="cmd", required=True)
+    s = sub.add_parser("textes", help="Lister les textes affichés sur l'attestation")
+    s.add_argument("pdf")
+    for name, attack in COMMANDS.items():
+        s = sub.add_parser(name, help=ATTACKS[attack])
+        s.add_argument("pdf")
+        if attack in ("texte", "incremental", "texte_preuve"):
+            s.add_argument("ancien", help="Texte à remplacer, tel qu'il apparaît sur l'attestation")
+            s.add_argument("nouveau", help="Nouveau texte")
+        s.add_argument("-o", "--sortie", default="faux.pdf")
+    a = p.parse_args(argv)
+    try:
+        pdf = open(a.pdf, "rb").read()
+        if a.cmd == "textes":
+            print("\n".join(texts(pdf)))
+            return 0
+        fake = forge(pdf, COMMANDS[a.cmd], getattr(a, "ancien", ""), getattr(a, "nouveau", ""))
+    except (OSError, ForgeError) as e:
+        print(f"Erreur : {e}", file=sys.stderr)
+        return 1
+    open(a.sortie, "wb").write(fake)
+    print(f"Faux écrit dans {a.sortie} ({len(pdf)} -> {len(fake)} octets). Attendu : {EXPECTED[COMMANDS[a.cmd]]}.")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

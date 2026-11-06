@@ -4,8 +4,10 @@
 - Premier lancement : assistant qui crée la PKI, le registre et le compte.
 - Émission : réservée au compte de l'établissement (émettre, révoquer, télécharger).
 - Vérification : ouverte à tous, aucun accès à la base ni aux clés.
-- Démonstration : tests automatiques, kit de fichiers falsifiés, panne simulée du registre.
 - Mesures : comparaison RSA-PSS / ECDSA.
+
+Le portail de vérification peut aussi être lancé seul (rôle « verification »), sur une autre
+machine ou un autre port : il n'a alors ni clé privée ni base de données.
 - API publique du registre : `/api/registry/<doc_id>` (lecture seule, réponse signée).
 
 Le vérificateur interroge le registre par HTTP, comme s'il était sur une autre
@@ -27,7 +29,7 @@ from pathlib import Path
 from flask import (Flask, Response, abort, flash, g, jsonify, redirect, render_template, request, send_file,
                    session, url_for)
 
-from . import forge, guided, pki, verifier
+from . import pki, verifier
 from .config import DEFAULT_ISSUER_ID, DEFAULT_ISSUER_NAME, PROJECT_ROOT, Paths
 from .issuer import IssuerService
 from .pdfgen import DOC_TYPES
@@ -35,14 +37,6 @@ from .registry import Registry
 
 MAX_UPLOAD = 10 * 1024 * 1024
 _SAFE_NAME = re.compile(r"^[A-Za-z0-9._-]+$")
-
-# Résultat attendu de chaque fichier du kit de démonstration, quand on le dépose
-# dans l'espace Vérification (le registre réel répond).
-KIT_EXPECTED = {
-    "S1a": "ACCEPTÉ", "S1b": "ACCEPTÉ", "S1c": "ACCEPTÉ", "S2a": "REFUSÉ", "S2e": "REFUSÉ", "S2b": "REFUSÉ", "S2c": "REFUSÉ", "S2d": "REFUSÉ",
-    "S3a": "REFUSÉ", "S3b": "REFUSÉ", "S3c": "REFUSÉ", "S4": "REFUSÉ", "S5": "REFUSÉ", "S7": "REFUSÉ",
-}
-
 
 def _secret_key(paths: Paths) -> bytes:
     if not paths.secret_key.exists():
@@ -63,14 +57,23 @@ def _check_csrf() -> None:
         abort(400, "Jeton CSRF invalide")
 
 
-def create_app(paths: Paths | None = None, *, status_lookup=None, results_dir: Path | None = None) -> Flask:
+# Rôles de déploiement : « complet » (établissement + portail de vérification sur le même serveur)
+# ou « verification » (portail public seul, qui interroge le registre de l'établissement à distance).
+ROLES = ("complet", "verification")
+VERIFIER_ENDPOINTS = {"home", "verification", "verify", "api_verify", "static"}
+
+
+def create_app(paths: Paths | None = None, *, status_lookup=None, results_dir: Path | None = None,
+               role: str = "complet") -> Flask:
+    if role not in ROLES:
+        raise ValueError(f"Rôle inconnu : {role}")
     paths = paths or Paths.default()
     app = Flask(__name__)
     app.config.update(
         SECRET_KEY=_secret_key(paths), MAX_CONTENT_LENGTH=MAX_UPLOAD,
         SESSION_COOKIE_HTTPONLY=True, SESSION_COOKIE_SAMESITE="Lax", SESSION_COOKIE_NAME="certiproof",
         PATHS=paths, RESULTS_DIR=Path(results_dir) if results_dir else PROJECT_ROOT / "results",
-        REGISTRY_OFFLINE=False, SERVICE=None,
+        SERVICE=None, ROLE=role,
     )
     lookup = status_lookup or verifier.http_status_lookup
     app.jinja_env.globals.update(csrf_token=_csrf_token, doc_types=DOC_TYPES)
@@ -97,13 +100,18 @@ def create_app(paths: Paths | None = None, *, status_lookup=None, results_dir: P
     @app.before_request
     def require_setup():
         g.ready = is_ready()
+        if role == "verification":
+            if request.endpoint not in VERIFIER_ENDPOINTS:
+                abort(404)
+            if not paths.trust_dir.is_dir():
+                abort(503, "Magasin de confiance absent : initialisez d'abord l'établissement.")
+            return None
         if not g.ready and request.endpoint not in ("setup", "static"):
             return redirect(url_for("setup"))
 
     @app.context_processor
     def inject():
-        return {"registry_offline": app.config["REGISTRY_OFFLINE"],
-                "issuer_name": service().issuer_name if g.get("ready") else "CertiProof"}
+        return {"role": role, "issuer_name": service().issuer_name if g.get("ready") and role != "verification" else "CertiProof"}
 
     # ------------------------------------------------------------------
     # Premier lancement
@@ -142,6 +150,8 @@ def create_app(paths: Paths | None = None, *, status_lookup=None, results_dir: P
     # ------------------------------------------------------------------
     @app.get("/")
     def home():
+        if role == "verification":
+            return redirect(url_for("verification"))
         svc = service()
         docs = svc.registry.list()
         certs = {alg: {"subject": c.subject.rfc4514_string(), "issuer": c.issuer.rfc4514_string(),
@@ -226,8 +236,6 @@ def create_app(paths: Paths | None = None, *, status_lookup=None, results_dir: P
     # ------------------------------------------------------------------
     @app.get("/api/registry/<doc_id>")
     def registry_status(doc_id):
-        if app.config["REGISTRY_OFFLINE"]:
-            return jsonify({"error": "Registre indisponible (panne simulée)"}), 503
         try:
             return jsonify(service().status_response(doc_id, request.args.get("nonce", ""),
                                                      request.args.get("alg", "ecdsa")))
@@ -258,203 +266,6 @@ def create_app(paths: Paths | None = None, *, status_lookup=None, results_dir: P
     def api_verify():
         result, _, _ = _run_verification()
         return jsonify(result.to_dict())
-
-    # ------------------------------------------------------------------
-    # Démonstration
-    # ------------------------------------------------------------------
-    demo_dir = paths.root / "demo"
-
-    def _kit() -> list[dict]:
-        meta_path = demo_dir / "kit.json"
-        if not meta_path.exists():
-            return []
-        kit = json.loads(meta_path.read_text(encoding="utf-8"))
-        # Kit généré par une version antérieure (avant la preuve jointe au PDF) : à régénérer
-        if {k.get("id") for k in kit} != set(KIT_EXPECTED):
-            return []
-        return kit
-
-    def _last_tests():
-        p = app.config["RESULTS_DIR"] / "scenarios.json"
-        return json.loads(p.read_text(encoding="utf-8")) if p.exists() else None
-
-    @app.get("/demo")
-    def demo():
-        return render_template("demo.html", kit=_kit(), tests=_last_tests())
-
-    @app.post("/demo/tests")
-    def demo_tests():
-        _check_csrf()
-        from .scenarios import run_scenarios
-
-        # PKI et registre jetables : n'affecte pas l'installation réelle
-        sandbox = Paths(paths.root / "scenarios")
-        if sandbox.root.exists():
-            shutil.rmtree(sandbox.root)
-        pki.init_pki(sandbox, DEFAULT_ISSUER_ID, DEFAULT_ISSUER_NAME)
-        results = run_scenarios(sandbox, app.config["RESULTS_DIR"])
-        ok = sum(r["conforme"] for r in results)
-        flash(f"{ok} scénarios sur {len(results)} conformes au résultat attendu.",
-              "ok" if ok == len(results) else "error")
-        return redirect(url_for("demo") + "#tests")
-
-    @app.post("/demo/kit")
-    @login_required
-    def demo_kit():
-        _check_csrf()
-        from .scenarios import build_scenarios
-
-        if demo_dir.exists():
-            shutil.rmtree(demo_dir)
-        scenarios = build_scenarios(paths, demo_dir)
-        kit = [{"id": s.id, "title": s.title, "expected": KIT_EXPECTED[s.id],
-                "pdf": f"{s.id}.pdf" if s.pdf else None, "proof": f"{s.id}.proof.json" if s.proof else None}
-               for s in scenarios if s.id in KIT_EXPECTED]
-        (demo_dir / "kit.json").write_text(json.dumps(kit, ensure_ascii=False, indent=2), encoding="utf-8")
-        app.config["SERVICE"] = None
-        flash("Kit de démonstration généré : 4 attestations ajoutées au registre (dont une révoquée).", "ok")
-        return redirect(url_for("demo") + "#kit")
-
-    @app.get("/demo/fichiers/<name>")
-    def demo_file(name):
-        if not _SAFE_NAME.match(name):
-            abort(404)
-        path = demo_dir / "fichiers" / name
-        if not path.is_file():
-            abort(404)
-        return send_file(path, as_attachment=True, download_name=name)
-
-    @app.get("/demo/kit.zip")
-    def demo_zip():
-        files_dir = demo_dir / "fichiers"
-        if not files_dir.is_dir():
-            abort(404)
-        buf = io.BytesIO()
-        with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as z:
-            for p in sorted(files_dir.iterdir()):
-                z.write(p, p.name)
-        buf.seek(0)
-        return send_file(buf, mimetype="application/zip", as_attachment=True,
-                         download_name="certiproof-kit-demo.zip")
-
-    @app.post("/demo/registry")
-    @login_required
-    def demo_registry():
-        _check_csrf()
-        app.config["REGISTRY_OFFLINE"] = request.form.get("offline") == "1"
-        flash("Panne du registre simulée : les vérifications donneront NON CONFIRMÉ."
-              if app.config["REGISTRY_OFFLINE"] else "Registre de nouveau en ligne.", "ok")
-        return redirect(request.referrer or url_for("demo"))
-
-    # ------------------------------------------------------------------
-    # Démonstration guidée (pour l'auditoire)
-    # ------------------------------------------------------------------
-    from . import guided
-
-    @app.get("/demo/guidee")
-    def guided_start():
-        return redirect(url_for("guided_step", n=0))
-
-    @app.get("/demo/guidee/<int:n>")
-    def guided_step(n):
-        if not 0 <= n < len(guided.STEPS):
-            abort(404)
-        return render_template("guided.html", steps=guided.STEPS, step=guided.STEPS[n], n=n,
-                               meta=guided.load_meta(paths))
-
-    @app.post("/demo/guidee/preparer")
-    @login_required
-    def guided_prepare():
-        _check_csrf()
-        guided.prepare(paths)
-        app.config["SERVICE"] = None
-        return redirect(url_for("guided_step", n=int(request.form.get("n", 1))))
-
-    @app.get("/demo/guidee/<int:n>/verifier")
-    def guided_verify(n):
-        if not 0 <= n < len(guided.STEPS) or "pdf" not in guided.STEPS[n]:
-            abort(404)
-        if guided.load_meta(paths) is None:
-            return jsonify({"error": "Démonstration non préparée"}), 409
-        step = guided.STEPS[n]
-        pdf, proof = guided.files_for(paths, step)
-        result = verifier.verify(pdf, proof, pki.load_trust_store(paths.trust_dir),
-                                 guided.make_lookup(paths, step["lookup"], lookup))
-        return jsonify(result.to_dict())
-
-    @app.get("/demo/guidee/media/<name>")
-    def guided_media(name):
-        if not _SAFE_NAME.match(name):
-            abort(404)
-        path = guided.guided_dir(paths) / name
-        if not path.is_file():
-            abort(404)
-        return send_file(path, max_age=0)
-
-    # ------------------------------------------------------------------
-    # Atelier du faussaire : falsifier en direct un PDF qu'on vient d'émettre
-    # ------------------------------------------------------------------
-    atelier_dir = paths.root / "atelier"
-
-    def _atelier_state():
-        p = atelier_dir / "etat.json"
-        return json.loads(p.read_text(encoding="utf-8")) if p.exists() else None
-
-    @app.get("/atelier")
-    def atelier():
-        return render_template("atelier.html", attacks=forge.ATTACKS, state=_atelier_state(), error=None, form={})
-
-    @app.post("/atelier")
-    def atelier_forge():
-        _check_csrf()
-        f = request.files.get("pdf")
-        form = {k: request.form.get(k, "") for k in ("attack", "old", "new")}
-        error = None
-        if not f or not f.filename:
-            error = "Déposez d'abord le PDF à falsifier."
-        else:
-            pdf = f.read()
-            try:
-                fake = forge.forge(pdf, form["attack"], form["old"], form["new"])
-            except forge.ForgeError as e:
-                error = str(e)
-        if error:
-            return render_template("atelier.html", attacks=forge.ATTACKS, state=None, error=error, form=form), 400
-        if atelier_dir.exists():
-            shutil.rmtree(atelier_dir)
-        atelier_dir.mkdir(parents=True)
-        (atelier_dir / "original.pdf").write_bytes(pdf)
-        (atelier_dir / "faux.pdf").write_bytes(fake)
-        a, b = guided._render(pdf), guided._render(fake)
-        (atelier_dir / "original.png").write_bytes(guided._png(a))
-        (atelier_dir / "faux.png").write_bytes(guided._png(b))
-        stem = re.sub(r"[^A-Za-z0-9_-]", "_", Path(f.filename).stem)[:60] or "document"
-        state = {"attack": form["attack"], "label": forge.ATTACKS[form["attack"]], "old": form["old"],
-                 "new": form["new"], "expected": forge.EXPECTED[form["attack"]], "name": f"{stem}-falsifie.pdf",
-                 "size_before": len(pdf), "size_after": len(fake), "token": secrets.token_hex(4)}
-        (atelier_dir / "etat.json").write_text(json.dumps(state, ensure_ascii=False), encoding="utf-8")
-        return redirect(url_for("atelier") + "#resultat")
-
-    @app.get("/atelier/media/<name>")
-    def atelier_media(name):
-        if name not in ("original.png", "faux.png", "faux.pdf"):
-            abort(404)
-        path = atelier_dir / name
-        if not path.is_file():
-            abort(404)
-        state = _atelier_state() or {}
-        if name == "faux.pdf":
-            return send_file(path, as_attachment=True, download_name=state.get("name", "faux.pdf"), max_age=0)
-        return send_file(path, max_age=0)
-
-    @app.get("/atelier/verifier")
-    def atelier_verify():
-        path = atelier_dir / "faux.pdf"
-        if not path.is_file():
-            return redirect(url_for("atelier"))
-        result = verifier.verify(path.read_bytes(), None, pki.load_trust_store(paths.trust_dir), lookup)
-        return render_template("verify.html", result=result, pdf_name=(_atelier_state() or {}).get("name", "faux.pdf"),
-                               proof_name="")
 
     # ------------------------------------------------------------------
     # Mesures

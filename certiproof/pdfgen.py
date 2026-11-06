@@ -54,7 +54,7 @@ def generate_pdf(a: AttestationData) -> bytes:
     c.drawCentredString(w / 2, h - 4 * cm, a.issuer_name)
     c.setFont("Helvetica", 10)
     c.setFillColor(colors.grey)
-    c.drawCentredString(w / 2, h - 4.7 * cm, "Établissement fictif - document de démonstration CertiProof")
+    c.drawCentredString(w / 2, h - 4.7 * cm, "Document signé numériquement - authenticité vérifiable avec CertiProof")
 
     c.setFillColor(colors.black)
     c.setFont("Helvetica-Bold", 28)

@@ -17,6 +17,9 @@ def app(paths, tmp_path):
 
     def lookup(url, doc_id, nonce, alg):
         # Le vérificateur interroge l'API du registre de la même application
+        if holder.get("down"):
+            from certiproof.verifier import RegistryUnavailable
+            raise RegistryUnavailable("serveur arrêté")
         r = holder["client"].get(f"/api/registry/{doc_id}", query_string={"nonce": nonce, "alg": alg})
         if r.status_code == 503:
             from certiproof.verifier import RegistryUnavailable
@@ -26,6 +29,7 @@ def app(paths, tmp_path):
     a = create_app(paths, status_lookup=lookup, results_dir=tmp_path / "results")
     a.testing = True
     holder["client"] = a.test_client()
+    a.holder = holder
     return a
 
 
@@ -50,7 +54,7 @@ def test_setup_wizard_on_first_launch(tmp_path):
 
 def test_home_and_public_pages(app):
     c = app.test_client()
-    for url in ("/", "/verification", "/demo", "/mesures"):
+    for url in ("/", "/verification", "/mesures"):
         assert c.get(url).status_code == 200, url
 
 
@@ -58,8 +62,6 @@ def test_emission_requires_login(app):
     c = app.test_client()
     assert c.get("/emission").status_code == 302
     assert c.post("/emission/issue", data={}).status_code == 302
-    assert c.post("/demo/kit", data={}).status_code == 302
-    assert c.post("/demo/registry", data={}).status_code == 302
 
 
 def test_bad_password(app):
@@ -87,39 +89,26 @@ def test_full_flow_issue_verify_revoke_and_outage(app):
                content_type="multipart/form-data")
     assert "ACCEPTÉ" in r.get_data(as_text=True)
 
-    c.post("/demo/registry", data={"csrf": tok, "offline": "1"})
+    app.holder["down"] = True  # serveur de l'établissement arrêté
     assert check() == "REGISTRE_INACCESSIBLE"
-    c.post("/demo/registry", data={"csrf": tok, "offline": "0"})
+    app.holder["down"] = False
     assert check() == "OK"
 
     c.post(f"/emission/{doc_id}/revoke", data={"csrf": tok, "reason": "test"})
     assert check() == "DOCUMENT_REVOQUE"
 
 
-def test_demo_kit_files_verify_as_expected(app):
+def test_bench_from_ui(app):
     c = app.test_client()
-    tok = login(c)
-    r = c.post("/demo/kit", data={"csrf": tok}, follow_redirects=True)
-    assert "Kit de démonstration généré" in r.get_data(as_text=True)
-    from certiproof.web import KIT_EXPECTED
-    for sid, expected in KIT_EXPECTED.items():
-        files = {"pdf": (io.BytesIO(c.get(f"/demo/fichiers/{sid}.pdf").data), "a.pdf")}
-        proof = c.get(f"/demo/fichiers/{sid}.proof.json")
-        if proof.status_code == 200:
-            files["proof"] = (io.BytesIO(proof.data), "p.json")
-        got = c.post("/api/verify", data=files, content_type="multipart/form-data").get_json()["verdict"]
-        assert got == expected, sid
-    assert c.get("/demo/kit.zip").status_code == 200
-    assert c.get("/demo/fichiers/..%2Fsecret_key").status_code == 404
-
-
-def test_demo_tests_and_bench_from_ui(app):
-    c = app.test_client()
-    tok = csrf(c.get("/demo").data)
-    r = c.post("/demo/tests", data={"csrf": tok}, follow_redirects=True)
-    assert "18 scénarios sur 18 conformes" in r.get_data(as_text=True)
+    tok = csrf(c.get("/mesures").data)
     r = c.post("/mesures", data={"csrf": tok, "n": "10"}, follow_redirects=True)
     assert "ECDSA P-256" in r.get_data(as_text=True)
+
+
+def test_no_demo_pages(app):
+    c = app.test_client()
+    for url in ("/demo", "/demo/guidee", "/atelier"):
+        assert c.get(url).status_code == 404, url
 
 
 def test_registry_api_requires_nonce(app):
@@ -132,56 +121,10 @@ def test_csrf_required(app):
     assert c.post("/verification", data={}).status_code == 400
 
 
-def test_guided_demo(app):
-    from certiproof import guided
-    c = app.test_client()
-    assert c.get("/demo/guidee/0").status_code == 200
-    tok = login(c)
-    c.post("/demo/guidee/preparer", data={"csrf": tok, "n": "1"})
-    expected = {"authentique": "OK", "note": "FICHIER_DIFFERENT", "avalanche": "FICHIER_DIFFERENT",
-                "preuve": "SIGNATURE_INCORRECTE", "couche": "CONTENU_AJOUTE_APRES_SIGNATURE", "faussaire": "EMETTEUR_INCONNU", "revoque": "DOCUMENT_REVOQUE",
-                "panne": "REGISTRE_INACCESSIBLE", "registre_forge": "REPONSE_REGISTRE_INVALIDE"}
-    for n, step in enumerate(guided.STEPS):
-        page = c.get(f"/demo/guidee/{n}")
-        assert page.status_code == 200, step["key"]
-        if step["key"] in expected:
-            assert c.get(f"/demo/guidee/{n}/verifier").get_json()["code"] == expected[step["key"]], step["key"]
-    assert c.get("/demo/guidee/media/original.png").status_code == 200
-    assert c.get("/demo/guidee/media/..%2Fsecret_key").status_code == 404
-    assert c.get("/demo/guidee/99").status_code == 404
-
-
-def test_guided_demo_from_older_version_is_reprepared(paths):
-    import json as _json
-    from certiproof import guided
-    d = guided.guided_dir(paths)
-    d.mkdir(parents=True, exist_ok=True)
-    (d / "meta.json").write_text(_json.dumps({"prepared_at": "ancienne version"}), encoding="utf-8")
-    assert guided.load_meta(paths) is None
-    guided.prepare(paths)
-    assert guided.load_meta(paths)["version"] == guided.META_VERSION
-
-
-def test_atelier_du_faussaire(app):
-    c = app.test_client()
-    tok = login(c)
-    r = c.post("/emission/issue", data={"csrf": tok, "doc_type": "diplome", "holder": "Prof Live", "program": "Crypto",
-                                        "grade": "Passable", "date": "2026-12-01", "alg": "ecdsa"}, follow_redirects=True)
-    doc_id = re.search(r"Attestation (UFS-\d{4}-[0-9A-F]+) émise", r.get_data(as_text=True)).group(1)
-    pdf = c.get(f"/emission/{doc_id}.pdf").data
-    assert c.get("/atelier").status_code == 200
-    expected = {"texte": "FICHIER_DIFFERENT", "incremental": "CONTENU_AJOUTE_APRES_SIGNATURE",
-                "texte_preuve": "SIGNATURE_INCORRECTE", "bit": "FICHIER_DIFFERENT", "sans_preuve": "PREUVE_ABSENTE"}
-    for attack, code in expected.items():
-        r = c.post("/atelier", data={"csrf": tok, "attack": attack, "old": "Passable", "new": "Excellent",
-                                     "pdf": (io.BytesIO(pdf), "diplome.pdf")}, content_type="multipart/form-data")
-        assert r.status_code == 302, attack
-        fake = c.get("/atelier/media/faux.pdf").data
-        got = c.post("/api/verify", data={"pdf": (io.BytesIO(fake), "f.pdf")},
-                     content_type="multipart/form-data").get_json()["code"]
-        assert got == code, attack
-        assert "REFUSÉ" in c.get("/atelier/verifier").get_data(as_text=True)
-    r = c.post("/atelier", data={"csrf": tok, "attack": "texte", "old": "Inexistant", "new": "X",
-                                 "pdf": (io.BytesIO(pdf), "diplome.pdf")}, content_type="multipart/form-data")
-    assert r.status_code == 400 and "introuvable" in r.get_data(as_text=True)
-    assert c.get("/atelier/media/..%2Fsecret_key").status_code == 404
+def test_verification_portal_role(paths, tmp_path):
+    a = create_app(paths, role="verification", results_dir=tmp_path / "r")
+    c = a.test_client()
+    assert c.get("/").headers["Location"].endswith("/verification")
+    assert c.get("/verification").status_code == 200
+    for url in ("/emission", "/login", "/setup", "/mesures", "/api/registry/X?nonce=1"):
+        assert c.get(url).status_code == 404, url

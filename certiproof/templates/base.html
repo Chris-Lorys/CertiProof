@@ -68,18 +68,18 @@
 <body>
 <header>
   <a class="brand" href="{{ url_for('home') }}">CertiProof</a>
-  {% if g.ready %}
+  {% if role == "verification" %}
+  <nav><a href="{{ url_for('verification') }}" class="on">Vérification</a></nav>
+  <div class="right"><span class="tag" style="background:rgba(255,255,255,.15)">Portail de vérification</span></div>
+  {% elif g.ready %}
   <nav>
     {% set ep = request.endpoint or '' %}
     <a href="{{ url_for('home') }}" class="{{ 'on' if ep == 'home' }}">Accueil</a>
     <a href="{{ url_for('emission') }}" class="{{ 'on' if ep in ('emission', 'login') }}">Émission</a>
     <a href="{{ url_for('verification') }}" class="{{ 'on' if ep in ('verification', 'verify') }}">Vérification</a>
-    <a href="{{ url_for('atelier') }}" class="{{ 'on' if ep.startswith('atelier') }}">Faussaire</a>
-    <a href="{{ url_for('demo') }}" class="{{ 'on' if ep.startswith('demo') or ep.startswith('guided') }}">Démonstration</a>
     <a href="{{ url_for('mesures') }}" class="{{ 'on' if ep == 'mesures' }}">Mesures</a>
   </nav>
   <div class="right">
-    {% if registry_offline %}<span class="tag warn">Registre hors ligne</span>{% endif %}
     {% if session.get("role") %}
     <form method="post" action="{{ url_for('logout') }}">
       <input type="hidden" name="csrf" value="{{ csrf_token() }}">

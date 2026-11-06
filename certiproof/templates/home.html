@@ -7,7 +7,7 @@
     et <strong>est-elle encore valide</strong> (registre).</p>
   <dl>
     <dt>Attestations émises</dt><dd>{{ n_docs }} dont {{ n_revoked }} révoquée(s)</dd>
-    <dt>Registre</dt><dd>{{ "Hors ligne (panne simulée)" if registry_offline else "En ligne" }} · <code>{{ svc.registry_url }}</code></dd>
+    <dt>Registre</dt><dd><code>{{ svc.registry_url }}</code></dd>
     {% for alg, c in certs.items() %}
     <dt>Certificat {{ "RSA-PSS 3072" if alg == "rsa" else "ECDSA P-256" }}</dt>
     <dd>émis par {{ c.issuer }} · valide jusqu'au {{ c.until }}</dd>
@@ -19,12 +19,9 @@
     <p class="muted">Réservé à l'établissement. Créer une attestation, la signer, la révoquer.</p>
     <div><a class="btn" href="{{ url_for('emission') }}">Ouvrir</a></div></div>
   <div class="card"><h2>2. Vérification</h2>
-    <p class="muted">Ouvert à tous. Déposer un PDF et sa preuve pour obtenir le verdict détaillé.</p>
+    <p class="muted">Ouvert à tous. Déposer un PDF signé pour obtenir le verdict détaillé.</p>
     <div><a class="btn" href="{{ url_for('verification') }}">Ouvrir</a></div></div>
-  <div class="card"><h2>3. Démonstration</h2>
-    <p class="muted">Démo guidée à projeter, tests automatiques des 16 scénarios, kit de fichiers, panne du registre.</p>
-    <div><a class="btn" href="{{ url_for('guided_start') }}">Démo guidée</a> <a class="btn secondary" href="{{ url_for('demo') }}">Tests et kit</a></div></div>
-  <div class="card"><h2>4. Mesures</h2>
+  <div class="card"><h2>3. Mesures</h2>
     <p class="muted">Comparer RSA-PSS et ECDSA : temps de signature, de vérification et tailles.</p>
     <div><a class="btn" href="{{ url_for('mesures') }}">Ouvrir</a></div></div>
 </div>

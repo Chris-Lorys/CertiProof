@@ -177,7 +177,7 @@ def init_pki(paths: Paths, issuer_id: str, issuer_name: str, *, force: bool = Fa
         return
 
     # 1. Autorité de certification reconnue (ex. un ministère de l'Éducation fictif)
-    ca_key, ca_cert = create_ca("AC Démo CertiProof - Ministère fictif")
+    ca_key, ca_cert = create_ca("Autorité de certification CertiProof")
     save_private_key(paths.ca_dir / "ca.key.pem", ca_key)
     save_cert(paths.ca_dir / "ca.cert.pem", ca_cert)
 

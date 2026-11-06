@@ -100,11 +100,13 @@ def cmd_serve(args, paths: Paths) -> None:
 
     from .web import create_app
 
-    url = f"http://{args.host}:{args.port}/"
-    print(f"CertiProof démarre sur {url}  (Ctrl+C pour arrêter)")
+    port = args.port or (DEFAULT_PORT + 1 if args.role == "verification" else DEFAULT_PORT)
+    url = f"http://{args.host}:{port}/"
+    what = "Portail de vérification" if args.role == "verification" else "CertiProof"
+    print(f"{what} démarre sur {url}  (Ctrl+C pour arrêter)")
     if not args.no_browser:
         threading.Timer(1.0, lambda: webbrowser.open(url)).start()
-    create_app(paths).run(host=args.host, port=args.port, debug=False, threaded=True)
+    create_app(paths, role=args.role).run(host=args.host, port=port, debug=False, threaded=True)
 
 
 def main(argv=None) -> None:
@@ -112,7 +114,7 @@ def main(argv=None) -> None:
     p.add_argument("--data", help="Répertoire des données locales (défaut : ./data ou $CERTIPROOF_DATA)")
     sub = p.add_subparsers(dest="cmd")
 
-    s = sub.add_parser("init", help="Créer la PKI de démonstration, le registre et le compte de l'établissement")
+    s = sub.add_parser("init", help="Créer la PKI, le registre et le compte de l'établissement")
     s.add_argument("--issuer-id", default=DEFAULT_ISSUER_ID)
     s.add_argument("--issuer-name", default=DEFAULT_ISSUER_NAME)
     s.add_argument("--username", default="registraire")
@@ -156,7 +158,9 @@ def main(argv=None) -> None:
 
     s = sub.add_parser("serve", help="Lancer l'application web (commande par défaut)")
     s.add_argument("--host", default="127.0.0.1")
-    s.add_argument("--port", type=int, default=DEFAULT_PORT)
+    s.add_argument("--port", type=int, help=f"défaut : {DEFAULT_PORT} (complet) ou {DEFAULT_PORT + 1} (verification)")
+    s.add_argument("--role", choices=["complet", "verification"], default="complet",
+                   help="verification : portail public seul, qui interroge le registre de l'établissement à distance")
     s.add_argument("--no-browser", action="store_true", help="Ne pas ouvrir le navigateur")
     s.set_defaults(func=cmd_serve)
 

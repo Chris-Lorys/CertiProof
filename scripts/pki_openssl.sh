@@ -50,7 +50,7 @@ make_issuer() {  # $1 = préfixe, $2 = rsa|ecdsa, $3 = clé AC, $4 = cert AC
 }
 
 # 1. AC reconnue
-make_ca "$PKI/ca/ca" "AC Démo CertiProof - Ministère fictif"
+make_ca "$PKI/ca/ca" "Autorité de certification CertiProof"
 # 2. Établissement : une paire de clés par algorithme
 for alg in rsa ecdsa; do
   make_issuer "$PKI/issuer/issuer-$alg" "$alg" "$PKI/ca/ca.key.pem" "$PKI/ca/ca.cert.pem"

@@ -52,50 +52,43 @@ L'application regroupe tout dans des onglets :
 | Accueil | tous | État de l'installation, certificats, nombre d'attestations |
 | Émission | compte de l'établissement | Émettre une attestation (RSA-PSS ou ECDSA), télécharger le PDF signé, révoquer |
 | Vérification | tous | Déposer le PDF signé : verdict, détail des 5 contrôles, empreintes, structure du fichier, temps |
-| Démonstration | tous (kit et panne : établissement) | Lancer les 16 scénarios, générer et télécharger le kit de fichiers falsifiés, simuler une panne du registre |
 | Mesures | tous | Comparer RSA-PSS et ECDSA (temps, tailles) et le coût de SHA-256 |
-
-### Démonstration guidée (à projeter)
-
-**Démonstration → Lancer la démo guidée** (ou http://127.0.0.1:5001/demo/guidee). Au premier passage, connectez-vous
-avec le compte de l'établissement et cliquez sur « Préparer la démonstration ». Onze écrans, un par idée :
-
-| # | Écran | Ce que voit l'auditoire | Verdict |
-|---|---|---|---|
-| ★ | Trois questions | Signature, SHA-256, registre : à quoi sert chaque mécanisme | – |
-| 1 | Le diplôme authentique | Les 5 contrôles s'allument en vert | ACCEPTÉ |
-| 2 | Alice gonfle sa mention | Original et faux côte à côte, différence entourée, empreintes comparées caractère par caractère | REFUSÉ |
-| 3 | Un seul bit suffit | Deux PDF identiques, 1 bit changé, grille des 256 bits de l'empreinte dont ~50 % changent | REFUSÉ |
-| 4 | Alice modifie aussi la preuve jointe | L'empreinte concorde, mais la signature casse | REFUSÉ |
-| 5 | Alice ajoute une couche par-dessus | Le lecteur PDF affiche la fausse mention alors que les octets signés sont intacts ; structure du fichier avec l'ajout en rouge | REFUSÉ |
-| 6 | Un faussaire crée sa propre université | Certificat signé par « AC Pirate » face au magasin de confiance | REFUSÉ |
-| 7 | Document annulé | Tout est valide sauf le statut ; réponse signée du registre affichée | REFUSÉ |
-| 8 | Registre en panne | Contrôles cryptographiques valides, statut inconnu | NON CONFIRMÉ |
-| 9 | Réponse du registre falsifiée | « VALIDE » annoncé, mais signature invalide | NON CONFIRMÉ |
-| 10 | Bilan | Récapitulatif et limites | – |
-
-Navigation : flèches ← → du clavier, **Entrée** pour lancer la vérification. Chaque vérification est réelle : elle
-rejoue le vérificateur sur les fichiers, contrôle après contrôle.
-
-Le reste de l'onglet Démonstration sert au rapport (tableau automatique des 16 scénarios) et aux essais manuels
-(kit de fichiers à déposer dans Vérification, panne du registre).
 
 Le vérificateur interroge le registre par HTTP (`/api/registry`), comme s'il était sur une autre machine, et
 n'a accès ni à la base ni aux clés.
 
-### Démonstration en direct (document émis devant le public)
+### Portail de vérification séparé
 
-L'onglet **Faussaire** (atelier du faussaire) fabrique un faux à partir d'une attestation qui vient d'être émise.
-Il n'a accès ni aux clés ni au registre : il modifie seulement le fichier, comme un fraudeur.
+En production, l'établissement (émission + registre) et le portail public de vérification sont deux serveurs
+distincts. On peut les lancer séparément :
 
-1. **Émission** : émettre une attestation (mention « Passable ») et télécharger le PDF.
-2. Ouvrir le PDF : la preuve est dans le panneau des pièces jointes (trombone).
-3. **Vérification** : déposer le PDF → ACCEPTÉ.
-4. **Faussaire** : « Passable » → « Excellent », réécriture complète → REFUSÉ (`FICHIER_DIFFERENT`).
-5. Même chose en « sauvegarde rapide » (ajout à la fin, comme Acrobat) → REFUSÉ (`CONTENU_AJOUTE_APRES_SIGNATURE`).
-6. Changer la note **et** l'empreinte dans la preuve → REFUSÉ (`SIGNATURE_INCORRECTE`) : sans la clé privée, impossible de re-signer.
-7. **Émission** : révoquer l'attestation, la vérifier de nouveau → REFUSÉ (`DOCUMENT_REVOQUE`).
-8. **Démonstration** : couper le registre, vérifier → NON CONFIRMÉ.
+```bash
+python -m certiproof                               # établissement, port 5001
+python -m certiproof serve --role verification    # portail de vérification seul, port 5002
+```
+
+Le portail n'a ni clé privée ni base de données : il n'utilise que le magasin de confiance (certificat de l'AC)
+et interroge le registre de l'établissement par HTTP. Si on arrête le serveur de l'établissement (Ctrl+C), le
+portail répond **NON CONFIRMÉ** : c'est le scénario « registre indisponible », sans aucune simulation.
+
+### Évaluation de sécurité (scénarios en direct)
+
+Les attaques se font avec des outils **extérieurs à l'application**, comme le ferait un fraudeur.
+`outils/falsifier.py` modifie un PDF signé sans clé ni accès au registre :
+
+```bash
+python -m outils.falsifier textes diplome.pdf                                   # textes affichés
+python -m outils.falsifier texte diplome.pdf "Passable" "Excellent" -o faux1.pdf         # → FICHIER_DIFFERENT
+python -m outils.falsifier rapide diplome.pdf "Passable" "Excellent" -o faux2.pdf        # sauvegarde incrémentale → CONTENU_AJOUTE_APRES_SIGNATURE
+python -m outils.falsifier texte-preuve diplome.pdf "Passable" "Excellent" -o faux3.pdf  # empreinte remplacée → SIGNATURE_INCORRECTE
+python -m outils.falsifier bit diplome.pdf -o faux4.pdf                                 # 1 bit → FICHIER_DIFFERENT
+python -m outils.falsifier sans-preuve diplome.pdf -o faux5.pdf                         # → PREUVE_ABSENTE
+cp diplome.pdf faux6.pdf && LC_ALL=C sed -i 's/"issued_at": "2026/"issued_at": "2020/' faux6.pdf  # preuve antidatée → SIGNATURE_INCORRECTE
+```
+
+Déroulé proposé : émettre une attestation (Émission) → la vérifier (ACCEPTÉ) → déposer chaque faux dans
+Vérification (REFUSÉ) → révoquer l'attestation (REFUSÉ) → arrêter le serveur de l'établissement et vérifier sur le
+portail séparé (NON CONFIRMÉ).
 
 ### Ligne de commande (optionnelle)
 
@@ -108,6 +101,7 @@ python -m certiproof issue --type diplome --holder "Alice Tremblay" \
 python -m certiproof verify data/issued/UFS-2026-XXXX.pdf
 python -m certiproof revoke UFS-2026-XXXX --reason "Erreur de saisie"
 python -m certiproof serve --port 8080 --no-browser
+python -m certiproof serve --role verification     # portail de vérification seul (port 5002)
 ```
 
 ### Essais de falsification et mesures (lot 3)
@@ -195,10 +189,10 @@ certiproof/
   registry.py   registre SQLite : statuts et comptes (mots de passe hachés)
   issuer.py     service d'émission, révocation, réponses de statut signées
   verifier.py   vérification complète et verdict
-  web.py        application Flask (accueil, émission, vérification, démonstration, mesures)
+  web.py        application Flask (accueil, émission, vérification, mesures ; rôle « verification » pour le portail seul)
   scenarios.py  jeu d'essai et rapport attendu / observé
-  guided.py     démonstration guidée : documents, falsifications, aperçus
   bench.py      mesures RSA-PSS / ECDSA et SHA-256
+outils/falsifier.py      outil d'attaque pour l'évaluation de sécurité (hors application)
 scripts/pki_openssl.sh   création de la PKI avec la CLI OpenSSL
 lancer.bat / lancer.sh   lancement en un clic (installe les dépendances au premier lancement)
 tests/                   tests pytest
@@ -206,7 +200,7 @@ results/                 rapports des essais et des mesures
 ```
 
 Séparation des droits : seul le compte de l'établissement (session, mot de passe haché, jetons CSRF) peut émettre,
-révoquer, générer le kit ou simuler une panne. L'espace Vérification n'utilise que le magasin de confiance et l'API
+et révoquer. L'espace Vérification n'utilise que le magasin de confiance et l'API
 publique en lecture seule du registre.
 Il n'interroge le registre qu'**après** avoir validé le certificat et la signature, pour ne jamais contacter une
 adresse fournie par un tiers non reconnu.
