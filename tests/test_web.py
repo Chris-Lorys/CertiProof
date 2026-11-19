@@ -46,7 +46,8 @@ def test_setup_wizard_on_first_launch(tmp_path):
     assert c.get("/verification").headers["Location"].endswith("/setup")
     tok = csrf(c.get("/setup").data)
     r = c.post("/setup", data={"csrf": tok, "issuer_name": "École Test", "issuer_id": "ET",
-                               "username": "admin", "password": "secret"}, follow_redirects=True)
+                               "username": "admin", "password": "secret-123",
+                               "password_confirm": "secret-123"}, follow_redirects=True)
     assert "Installation terminée" in r.get_data(as_text=True)
     assert c.get("/").status_code == 200
     assert c.get("/setup").status_code == 302
@@ -100,9 +101,13 @@ def test_full_flow_issue_verify_revoke_and_outage(app):
 
 def test_bench_from_ui(app):
     c = app.test_client()
-    tok = csrf(c.get("/mesures").data)
+    tok = csrf(c.get("/login").data)
+    assert c.post("/mesures", data={"csrf": tok, "n": "10"}).status_code == 302  # réservé à l'établissement
+    assert not (app.config["RESULTS_DIR"] / "bench.json").exists()
+    tok = login(c)
     r = c.post("/mesures", data={"csrf": tok, "n": "10"}, follow_redirects=True)
-    assert "ECDSA P-256" in r.get_data(as_text=True)
+    assert "Mesuré sur cette machine" in r.get_data(as_text=True)
+    assert (app.config["RESULTS_DIR"] / "bench.json").exists()
 
 
 def test_no_demo_pages(app):
@@ -128,3 +133,48 @@ def test_verification_portal_role(paths, tmp_path):
     assert c.get("/verification").status_code == 200
     for url in ("/emission", "/login", "/setup", "/mesures", "/api/registry/X?nonce=1"):
         assert c.get(url).status_code == 404, url
+
+
+def test_setup_rejects_short_password(tmp_path):
+    c = create_app(Paths(tmp_path / "vide2"), results_dir=tmp_path / "r").test_client()
+    tok = csrf(c.get("/setup").data)
+    r = c.post("/setup", data={"csrf": tok, "password": "court", "password_confirm": "court"})
+    assert r.status_code == 400 and "au moins 8" in r.get_data(as_text=True)
+    assert not (tmp_path / "vide2" / "pki").exists()
+
+
+def test_real_install_has_no_rogue_ca(tmp_path):
+    c = create_app(Paths(tmp_path / "neuf"), results_dir=tmp_path / "r").test_client()
+    tok = csrf(c.get("/setup").data)
+    c.post("/setup", data={"csrf": tok, "password": "motdepasse", "password_confirm": "motdepasse"})
+    assert (tmp_path / "neuf" / "trust" / "ca.cert.pem").exists()
+    assert not (tmp_path / "neuf" / "pki" / "rogue").exists()
+
+
+def test_friendly_error_pages_and_security_headers(app):
+    c = app.test_client()
+    r = c.get("/nexiste-pas")
+    assert r.status_code == 404 and "Page introuvable" in r.get_data(as_text=True)
+    assert r.headers["X-Frame-Options"] == "DENY"
+    assert "frame-ancestors 'none'" in r.headers["Content-Security-Policy"]
+    r = c.post("/verification", data={})
+    assert r.status_code == 400 and "session a expiré" in r.get_data(as_text=True)
+    r = c.get("/api/registry/X")
+    assert r.status_code == 400 and r.is_json
+
+
+def test_upload_too_large(app):
+    c = app.test_client()
+    tok = csrf(c.get("/verification").data)
+    big = io.BytesIO(b"0" * (11 * 1024 * 1024))
+    r = c.post("/verification", data={"csrf": tok, "pdf": (big, "gros.pdf")}, content_type="multipart/form-data")
+    assert r.status_code == 413 and "trop volumineux" in r.get_data(as_text=True)
+
+
+def test_login_throttled_after_repeated_failures(app):
+    c = app.test_client()
+    tok = csrf(c.get("/login").data)
+    for _ in range(5):
+        assert c.post("/login", data={"csrf": tok, "username": "registraire", "password": "x"}).status_code == 401
+    r = c.post("/login", data={"csrf": tok, "username": "registraire", "password": "motdepasse"})
+    assert r.status_code == 429

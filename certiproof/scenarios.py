@@ -20,12 +20,22 @@ from . import pki, signing, verifier
 from .config import Paths
 from .issuer import IssuerService
 from .pdfgen import AttestationData, generate_pdf
-from .embedding import embed, overlay
+from .embedding import append_update, embed, objects_of
 from .proof import b64e, build_proof, dump_proof, sha256_hex, status_bytes, utc_iso
 from .verifier import RegistryUnavailable
 
 ORIGINAL = dict(doc_type="diplome", holder="Alice Tremblay",
                 program="Baccalauréat en informatique", grade="Excellent (GPA 4,1)", date="2026-06-15")
+
+
+# Attaque « couche ajoutée » (S2e) : propre au jeu d'essai, absente de l'application
+def overlay(signed_pdf: bytes, original_base: bytes, forged_base: bytes) -> bytes:
+    """Attaque : ajoute à la fin d'un PDF signé une mise à jour incrémentale qui remplace les
+    objets modifiés (contenu de la page) par ceux d'un faux. Les octets signés restent intacts,
+    mais un lecteur PDF affiche la version falsifiée."""
+    a, b = objects_of(original_base), objects_of(forged_base)
+    changed = {n: body for n, body in b.items() if a.get(n) != body}
+    return append_update(signed_pdf, changed)
 
 
 @dataclass

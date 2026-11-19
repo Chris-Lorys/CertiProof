@@ -1,0 +1,20 @@
+[project]
+name = "certiproof"
+version = "1.0.0"
+description = "Vérification de diplômes et d'attestations par signatures numériques (RSA-PSS, ECDSA, SHA-256)"
+readme = "README.md"
+requires-python = ">=3.10"
+authors = [{ name = "Daren HOUEDANOU" }, { name = "Fredy Loïc NGUE TCHANA" }]
+dependencies = ["cryptography>=42", "flask>=3.0", "reportlab>=4.0", "pypdfium2>=4.0"]
+
+[project.optional-dependencies]
+test = ["pytest>=8.0"]
+
+[tool.setuptools]
+packages = ["certiproof"]
+
+[tool.setuptools.package-data]
+certiproof = ["templates/*.html", "static/*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

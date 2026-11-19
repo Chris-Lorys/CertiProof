@@ -127,17 +127,8 @@ def extract(pdf: bytes) -> bytes | None:
 
 
 def objects_of(pdf: bytes) -> dict[int, bytes]:
-    """Objets PDF de la dernière révision (utilisé pour fabriquer l'attaque « couche ajoutée »)."""
+    """Objets PDF du fichier, par numéro (la dernière définition l'emporte)."""
     out = {}
     for m in re.finditer(rb"(?:^|\n)(\d+) 0 obj\s*(.*?)\s*endobj", pdf, re.S):
         out[int(m.group(1))] = m.group(2)
     return out
-
-
-def overlay(signed_pdf: bytes, original_base: bytes, forged_base: bytes) -> bytes:
-    """Attaque : ajoute à la fin d'un PDF signé une mise à jour incrémentale qui remplace les
-    objets modifiés (contenu de la page) par ceux d'un faux. Les octets signés restent intacts,
-    mais un lecteur PDF affiche la version falsifiée."""
-    a, b = objects_of(original_base), objects_of(forged_base)
-    changed = {n: body for n, body in b.items() if a.get(n) != body}
-    return append_update(signed_pdf, changed)

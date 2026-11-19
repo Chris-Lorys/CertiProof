@@ -1,55 +1,95 @@
 {% extends "base.html" %}
+{% from "_icons.html" import icon %}
+{% block title %}Vérification{% endblock %}
 {% block content %}
+<div class="page-head">
+  <div>
+    <h1>Vérifier une attestation</h1>
+    <p>Déposez le PDF reçu. La preuve CertiProof est jointe à l'intérieur du fichier ; le vérificateur contrôle qui
+      l'a signé, s'il a été modifié et s'il est toujours valide.</p>
+  </div>
+</div>
+
 <div class="card">
-  <h2>Vérifier une attestation</h2>
-  <p class="muted">Déposez le PDF reçu : la preuve CertiProof est jointe à l'intérieur du fichier. Le vérificateur
-    répond à trois questions : qui l'a signé, a-t-il changé, est-il encore valide ?</p>
-  <form method="post" action="{{ url_for('verify') }}" enctype="multipart/form-data">
-    <input type="hidden" name="csrf" value="{{ csrf_token() }}">
-    <div class="grid">
-      <p><label>Document PDF</label><input type="file" name="pdf" accept="application/pdf,.pdf" required></p>
-      <p><label>Preuve séparée (.proof.json, facultatif)</label><input type="file" name="proof" accept=".json,application/json"></p>
-    </div>
-    <button>Vérifier</button>
-  </form>
+  <div class="card-body">
+    <form method="post" action="{{ url_for('verify') }}#resultat" enctype="multipart/form-data" data-busy="Vérification…">
+      <input type="hidden" name="csrf" value="{{ csrf_token() }}">
+      <label class="dropzone">
+        <input type="file" name="pdf" accept="application/pdf,.pdf" required>
+        {{ icon("upload", "ico") }}
+        <strong>Déposez le PDF ici ou cliquez pour le choisir</strong>
+        <span class="muted small">PDF signé par CertiProof, 10 Mo au plus</span>
+        <span class="file-name"></span>
+      </label>
+      <details class="more">
+        <summary>Preuve fournie dans un fichier séparé</summary>
+        <label class="dropzone small">
+          <input type="file" name="proof" accept=".json,application/json">
+          {{ icon("file", "ico") }}
+          <span class="muted small">Fichier <code>.proof.json</code> (facultatif : uniquement pour les anciens documents)</span>
+          <span class="file-name"></span>
+        </label>
+      </details>
+      <div style="margin-top:18px"><button>{{ icon("shield") }} Vérifier</button></div>
+    </form>
+  </div>
 </div>
 
 {% if result %}
-{% set cls = "v-ok" if result.verdict == "ACCEPTÉ" else ("v-warn" if result.verdict == "NON CONFIRMÉ" else "v-ko") %}
-<div class="verdict {{ cls }}">
-  <h2>{{ result.verdict }}</h2>
-  <div>{{ result.message }}</div>
-  <div class="muted" style="margin-top:6px">Code : <code>{{ result.code }}</code> · {{ pdf_name }}{% if proof_name %} + {{ proof_name }}{% endif %}</div>
+{% set kind = "ok" if result.verdict == "ACCEPTÉ" else ("warn" if result.verdict == "NON CONFIRMÉ" else "ko") %}
+<div id="resultat" class="verdict v-{{ kind }}" style="margin-top:20px;scroll-margin-top:20px" role="status">
+  <div class="big">{{ icon({"ok": "check", "warn": "alert", "ko": "x"}[kind]) }}</div>
+  <div>
+    <h2>{{ result.verdict }}</h2>
+    <p>{{ result.message }}</p>
+    <div class="meta">{{ pdf_name }}{% if proof_name %} + {{ proof_name }}{% endif %} · code <code>{{ result.code }}</code></div>
+  </div>
 </div>
 
-<div class="card">
-  <h2>Contrôles</h2>
-  {% for c in result.checks %}
-  <div class="check">
-    <div class="icon {{ 'i-ok' if c.ok == true else ('i-ko' if c.ok == false else 'i-na') }}">
-      {{ "✓" if c.ok == true else ("✗" if c.ok == false else "?") }}</div>
-    <div><strong>{{ c.name }}</strong><div class="muted">{{ c.detail }}</div></div>
-  </div>
-  {% endfor %}
+<div class="card" style="margin-top:20px">
+  <div class="card-head"><h2>Contrôles effectués</h2></div>
+  <ul class="checks">
+    {% for c in result.checks %}
+    {% set st = "ok" if c.ok == true else ("ko" if c.ok == false else "na") %}
+    <li>
+      <span class="dot {{ st }}">{{ icon({"ok": "check", "ko": "x", "na": "question"}[st]) }}</span>
+      <div><strong>{{ c.name }}</strong><span class="detail">{{ c.detail }}</span></div>
+    </li>
+    {% endfor %}
+  </ul>
 </div>
 
 {% if result.info %}
+{% set i = result.info %}
 <div class="card">
-  <h2>Détails</h2>
-  <dl>
-    <dt>Document</dt><dd><code>{{ result.info.doc_id }}</code></dd>
-    <dt>Émetteur (certificat)</dt><dd>{{ result.info.issuer_name }} ({{ result.info.issuer_id_cert }})</dd>
-    <dt>Autorité</dt><dd>{{ result.info.ca or "non reconnue" }}</dd>
-    <dt>Émis le</dt><dd>{{ result.info.issued_at }}</dd>
-    <dt>Algorithme</dt><dd>{{ result.info.algorithm }} ({{ result.info.signature_bytes }} octets)</dd>
-    <dt>SHA-256 attendu</dt><dd><code>{{ result.info.expected_sha256 }}</code></dd>
-    <dt>SHA-256 calculé</dt><dd><code>{{ result.info.pdf_sha256 }}</code></dd>
-    {% if result.info.signed_bytes %}<dt>Structure du fichier</dt><dd>{{ result.info.signed_bytes }} octets signés
-      {% if result.info.proof_bytes %} + {{ result.info.proof_bytes }} octets de preuve jointe{% endif %}
-      {% if result.info.extra_bytes %} + <strong style="color:var(--ko)">{{ result.info.extra_bytes }} octets ajoutés après signature</strong>{% endif %}
-      = {{ result.info.total_bytes }} octets</dd>{% endif %}
-    {% for k, v in result.timings_ms.items() %}<dt>Temps {{ k }}</dt><dd>{{ "%.3f"|format(v) }} ms</dd>{% endfor %}
-  </dl>
+  <div class="card-head"><h2>Détails</h2></div>
+  <div class="card-body">
+    <dl class="kv">
+      <dt>Attestation</dt><dd><code>{{ i.doc_id }}</code></dd>
+      <dt>Émetteur (certificat)</dt><dd>{{ i.issuer_name }} ({{ i.issuer_id_cert }})</dd>
+      <dt>Autorité</dt><dd>{{ i.ca or "non reconnue" }}</dd>
+      <dt>Émise le</dt><dd>{{ i.issued_at }}</dd>
+      <dt>Signature</dt><dd>{{ i.algorithm }} · {{ i.signature_bytes }} octets</dd>
+      <dt>SHA-256 signé</dt><dd><code>{{ i.expected_sha256 }}</code></dd>
+      <dt>SHA-256 calculé</dt><dd><code>{{ i.pdf_sha256 }}</code>
+        {% if i.pdf_sha256 == i.expected_sha256 %}<span class="badge valid">identique</span>{% else %}<span class="badge revoked">différent</span>{% endif %}</dd>
+      {% for k, v in result.timings_ms.items() %}<dt>Temps : {{ k }}</dt><dd>{{ "%.3f"|format(v) }} ms</dd>{% endfor %}
+    </dl>
+    {% if i.signed_bytes and i.total_bytes %}
+    {% set tot = i.total_bytes %}
+    <h3 style="margin-top:22px">Structure du fichier · {{ tot }} octets</h3>
+    <div class="filebar" role="img" aria-label="Répartition des octets du fichier">
+      <div class="signed" style="width:{{ [100 * i.signed_bytes / tot, 100] | min }}%"></div>
+      {% if i.proof_bytes %}<div class="proof" style="width:{{ 100 * i.proof_bytes / tot }}%"></div>{% endif %}
+      {% if i.extra_bytes %}<div class="extra" style="width:{{ [100 * i.extra_bytes / tot, 2] | max }}%"></div>{% endif %}
+    </div>
+    <div class="legend">
+      <span><i style="background:var(--brand-2)"></i>{{ i.signed_bytes }} octets signés</span>
+      {% if i.proof_bytes %}<span><i style="background:#7fa3d6"></i>{{ i.proof_bytes }} octets de preuve jointe</span>{% endif %}
+      {% if i.extra_bytes %}<span style="color:var(--ko)"><i style="background:var(--ko)"></i>{{ i.extra_bytes }} octets ajoutés après signature</span>{% endif %}
+    </div>
+    {% endif %}
+  </div>
 </div>
 {% endif %}
 {% endif %}

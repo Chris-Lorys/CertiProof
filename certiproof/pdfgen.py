@@ -1,4 +1,4 @@
-"""Génération des attestations PDF de démonstration (données fictives)."""
+"""Génération des attestations PDF (reportlab, sortie reproductible)."""
 
 from __future__ import annotations
 

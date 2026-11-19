@@ -6,6 +6,7 @@ import pytest
 from certiproof import embedding, pki, verifier
 from certiproof.issuer import IssuerService
 from certiproof.pdfgen import AttestationData, generate_pdf
+from certiproof.scenarios import overlay
 
 
 @pytest.fixture(scope="module")
@@ -44,7 +45,7 @@ def test_anything_appended_is_refused(paths, doc, tail):
 def test_overlay_attack_changes_display_but_is_refused(paths, doc):
     data = AttestationData(doc_id=doc.doc_id, issuer_name="Université Fictive du Saguenay", doc_type="diplome",
                            holder="Eve", program="Maîtrise", grade="A+", date="2026-01-01")
-    attacked = embedding.overlay(doc.pdf, doc.base_pdf, generate_pdf(data))
+    attacked = overlay(doc.pdf, doc.base_pdf, generate_pdf(data))
     text = pdfium.PdfDocument(attacked)[0].get_textpage().get_text_range()
     assert "A+" in text  # le lecteur PDF affiche bien la version falsifiée
     r = verifier.verify(attacked, None, pki.load_trust_store(paths.trust_dir), None)
