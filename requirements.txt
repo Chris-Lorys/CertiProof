@@ -1,5 +1,7 @@
+# Dépendances de l'application
 cryptography>=42
 flask>=3.0
 reportlab>=4.0
 pypdfium2>=4.0
+# Tests automatisés (python -m pytest)
 pytest>=8.0

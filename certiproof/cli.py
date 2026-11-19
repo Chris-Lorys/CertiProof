@@ -75,7 +75,8 @@ def cmd_scenarios(args, paths: Paths) -> None:
 
     # Jeu d'essai isolé et recréé à chaque exécution : n'affecte pas le registre réel
     demo = Paths(paths.root / "scenarios")
-    pki.init_pki(demo, DEFAULT_ISSUER_ID, DEFAULT_ISSUER_NAME, force=True, use_openssl=args.openssl)
+    pki.init_pki(demo, DEFAULT_ISSUER_ID, DEFAULT_ISSUER_NAME, force=True, use_openssl=args.openssl,
+                  with_rogue=True)
     if demo.db.exists():
         demo.db.unlink()
     out = Path(args.out)

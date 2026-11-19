@@ -1,21 +1,37 @@
 {% extends "base.html" %}
+{% block title %}Installation{% endblock %}
 {% block content %}
-<div class="card" style="max-width:560px;margin:32px auto">
-  <h2>Bienvenue dans CertiProof</h2>
-  <p class="muted">Premier lancement : l'application va créer une autorité de certification de démonstration,
-    les clés RSA-3072 et ECDSA P-256 de l'établissement, leurs certificats, le registre SQLite et le compte
-    de l'établissement. Les clés restent sur cet ordinateur, dans le dossier <code>data/</code>.</p>
-  <form method="post">
-    <input type="hidden" name="csrf" value="{{ csrf_token() }}">
-    <p><label>Nom de l'établissement (fictif)</label>
-      <input name="issuer_name" value="{{ form.get('issuer_name', 'Université Fictive du Saguenay') }}"></p>
-    <p><label>Identifiant de l'établissement</label>
-      <input name="issuer_id" value="{{ form.get('issuer_id', 'UFS') }}"></p>
-    <div class="grid">
-      <p><label>Compte de l'établissement</label><input name="username" value="{{ form.get('username', 'registraire') }}"></p>
-      <p><label>Mot de passe</label><input name="password" type="password" required></p>
-    </div>
-    <button>Créer l'installation</button>
-  </form>
+<div class="card medium">
+  <div class="card-body">
+    <h1>Bienvenue dans CertiProof</h1>
+    <p class="muted" style="margin-top:8px">Cette étape n'a lieu qu'une fois. L'application va créer :</p>
+    <ul class="steps">
+      <li>l'autorité de certification et le magasin de confiance du vérificateur ;</li>
+      <li>les clés RSA-3072 et ECDSA P-256 de l'établissement et leurs certificats ;</li>
+      <li>le registre des attestations (SQLite) et le compte de l'établissement.</li>
+    </ul>
+    <p class="muted small">Les clés privées restent sur cet ordinateur, dans le dossier <code>data/</code>, qui n'est
+      jamais versionné.</p>
+    <form method="post" data-busy="Création en cours…" style="margin-top:18px">
+      <input type="hidden" name="csrf" value="{{ csrf_token() }}">
+      <div class="form-grid">
+        <div class="field"><label for="issuer_name">Nom de l'établissement</label>
+          <input id="issuer_name" name="issuer_name" maxlength="120" value="{{ form.get('issuer_name', 'Université Fictive du Saguenay') }}"></div>
+        <div class="field"><label for="issuer_id">Identifiant</label>
+          <input id="issuer_id" name="issuer_id" maxlength="16" value="{{ form.get('issuer_id', 'UFS') }}">
+          <div class="hint">2 à 16 lettres, chiffres ou tirets. Préfixe des numéros d'attestation.</div></div>
+      </div>
+      <div class="field"><label for="username">Compte de l'établissement</label>
+        <input id="username" name="username" value="{{ form.get('username', 'registraire') }}" autocomplete="username"></div>
+      <div class="form-grid">
+        <div class="field"><label for="password">Mot de passe</label>
+          <input id="password" name="password" type="password" minlength="8" autocomplete="new-password" required>
+          <div class="hint">8 caractères au moins.</div></div>
+        <div class="field"><label for="password_confirm">Confirmation</label>
+          <input id="password_confirm" name="password_confirm" type="password" minlength="8" autocomplete="new-password" required></div>
+      </div>
+      <button>Créer l'installation</button>
+    </form>
+  </div>
 </div>
 {% endblock %}

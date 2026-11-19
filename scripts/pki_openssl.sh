@@ -1,10 +1,11 @@
 #!/usr/bin/env bash
-# Crée la PKI de démonstration avec la ligne de commande OpenSSL.
+# Crée la PKI de CertiProof avec la ligne de commande OpenSSL.
 # Même arborescence que `python -m certiproof init` (qui l'appelle avec --openssl).
 #
 #   scripts/pki_openssl.sh <répertoire_données> [ID_ÉTABLISSEMENT] [NOM_ÉTABLISSEMENT]
 #
 # Les clés privées restent dans <répertoire_données>, exclu du dépôt Git.
+# CERTIPROOF_ROGUE=1 ajoute la fausse AC du jeu d'essai (jamais dans une installation réelle).
 set -euo pipefail
 
 DATA="${1:?usage: $0 <répertoire_données> [id] [nom]}"
@@ -14,7 +15,7 @@ CA_DAYS=3650
 ISSUER_DAYS=825
 
 PKI="$DATA/pki"
-mkdir -p "$PKI/ca" "$PKI/issuer" "$PKI/rogue" "$DATA/trust"
+mkdir -p "$PKI/ca" "$PKI/issuer" "$DATA/trust"
 umask 077
 TMP="$(mktemp -d)"; trap 'rm -rf "$TMP"' EXIT
 
@@ -57,11 +58,14 @@ for alg in rsa ecdsa; do
 done
 # 3. Magasin de confiance du vérificateur
 cp "$PKI/ca/ca.cert.pem" "$DATA/trust/ca.cert.pem"
-# 4. Fausse AC et faux établissement (mêmes nom et identifiant)
-make_ca "$PKI/rogue/rogue-ca" "AC Pirate"
-for alg in rsa ecdsa; do
-  make_issuer "$PKI/rogue/rogue-$alg" "$alg" "$PKI/rogue/rogue-ca.key.pem" "$PKI/rogue/rogue-ca.cert.pem"
-done
+# 4. Jeu d'essai uniquement : fausse AC et faux établissement (mêmes nom et identifiant)
+if [ "${CERTIPROOF_ROGUE:-0}" = "1" ]; then
+  mkdir -p "$PKI/rogue"
+  make_ca "$PKI/rogue/rogue-ca" "AC Pirate"
+  for alg in rsa ecdsa; do
+    make_issuer "$PKI/rogue/rogue-$alg" "$alg" "$PKI/rogue/rogue-ca.key.pem" "$PKI/rogue/rogue-ca.cert.pem"
+  done
+fi
 
 chmod 644 "$DATA/trust/ca.cert.pem" "$PKI"/*/*.cert.pem
 echo "PKI OpenSSL créée dans $PKI"

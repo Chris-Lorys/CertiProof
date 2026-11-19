@@ -1,4 +1,4 @@
-"""PKI de démonstration : autorité de certification, certificats d'émetteurs,
+"""PKI de CertiProof : autorité de certification, certificats d'émetteurs,
 magasin de confiance du vérificateur et validation des certificats.
 
 Le certificat d'un établissement associe sa clé publique à son identité
@@ -159,10 +159,13 @@ def issue_issuer_cert(
 # --------------------------------------------------------------------------
 
 def init_pki(paths: Paths, issuer_id: str, issuer_name: str, *, force: bool = False,
-             use_openssl: bool = False) -> None:
-    """Crée l'AC de démonstration, les certificats RSA et ECDSA de l'établissement,
-    le magasin de confiance du vérificateur, et une fausse AC pour les essais.
+             use_openssl: bool = False, with_rogue: bool = False) -> None:
+    """Crée l'autorité de certification, les certificats RSA et ECDSA de l'établissement
+    et le magasin de confiance du vérificateur.
 
+    `with_rogue=True` ajoute une fausse AC et un faux établissement (même nom, même
+    identifiant), utilisés uniquement par le jeu d'essai et les tests : une installation
+    réelle n'en contient jamais.
     `use_openssl=True` délègue la création à scripts/pki_openssl.sh (CLI OpenSSL)."""
     if paths.pki.exists():
         if not force:
@@ -172,7 +175,8 @@ def init_pki(paths: Paths, issuer_id: str, issuer_name: str, *, force: bool = Fa
 
     if use_openssl:
         script = Path(__file__).resolve().parent.parent / "scripts" / "pki_openssl.sh"
-        subprocess.run(["bash", str(script), str(paths.root), issuer_id, issuer_name], check=True)
+        env = {**os.environ, "CERTIPROOF_ROGUE": "1" if with_rogue else "0"}
+        subprocess.run(["bash", str(script), str(paths.root), issuer_id, issuer_name], check=True, env=env)
         _write_issuer_config(paths, issuer_id, issuer_name)
         return
 
@@ -192,7 +196,14 @@ def init_pki(paths: Paths, issuer_id: str, issuer_name: str, *, force: bool = Fa
     paths.trust_dir.mkdir(parents=True, exist_ok=True)
     save_cert(paths.trust_dir / "ca.cert.pem", ca_cert)
 
-    # 4. Fausse AC + faux établissement qui usurpe le même identifiant
+    # 4. Jeu d'essai uniquement : fausse AC + faux établissement qui usurpe le même identifiant
+    if with_rogue:
+        _init_rogue(paths, issuer_id, issuer_name)
+
+    _write_issuer_config(paths, issuer_id, issuer_name)
+
+
+def _init_rogue(paths: Paths, issuer_id: str, issuer_name: str) -> None:
     rogue_ca_key, rogue_ca_cert = create_ca("AC Pirate")
     save_private_key(paths.rogue_dir / "rogue-ca.key.pem", rogue_ca_key)
     save_cert(paths.rogue_dir / "rogue-ca.cert.pem", rogue_ca_cert)
@@ -201,8 +212,6 @@ def init_pki(paths: Paths, issuer_id: str, issuer_name: str, *, force: bool = Fa
         cert = issue_issuer_cert(rogue_ca_key, rogue_ca_cert, issuer_id, issuer_name, key.public_key())
         save_private_key(paths.rogue_dir / f"rogue-{alg}.key.pem", key)
         save_cert(paths.rogue_dir / f"rogue-{alg}.cert.pem", cert)
-
-    _write_issuer_config(paths, issuer_id, issuer_name)
 
 
 def _write_issuer_config(paths: Paths, issuer_id: str, issuer_name: str) -> None:
